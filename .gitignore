@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.test
+.env.local
+*.log
+coverage/
+uploads/
+nginx/ssl/*.pem
+prisma/migrations/
+dashboard/node_modules/
+dashboard/dist/
+.DS_Store

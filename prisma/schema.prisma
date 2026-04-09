@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id                String         @id @default(uuid())
+  phone             String         @unique
+  name              String?
+  isActive          Boolean        @default(true)
+  conversationState Json           @default("{\"state\": \"IDLE\"}")
+  sessionExpiresAt  DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+  savedAddress      String?
+  stats             CustomerStats?
+  orders            Order[]
+  reviews           Review[]
+
+  @@index([phone])
+  @@index([deletedAt])
+  @@map("customers")
+}
+
+model CustomerStats {
+  id               String    @id @default(uuid())
+  customerId       String    @unique
+  totalOrders      Int       @default(0)
+  completedOrders  Int       @default(0)
+  cancelledOrders  Int       @default(0)
+  totalSpentUsd    Decimal   @default(0) @db.Decimal(10, 4)
+  totalSpentBs     Decimal   @default(0) @db.Decimal(12, 2)
+  avgOrderValueUsd Decimal   @default(0) @db.Decimal(10, 4)
+  lastOrderAt      DateTime?
+  firstOrderAt     DateTime?
+  favoriteItemId   String?
+  favoriteItemName String?
+  updatedAt        DateTime  @updatedAt
+  customer         Customer  @relation(fields: [customerId], references: [id])
+
+  @@index([totalSpentUsd(sort: Desc)])
+  @@map("customer_stats")
+}
+
+model MenuCategory {
+  id        String     @id @default(uuid())
+  name      String
+  emoji     String     @default("🍽️")
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  priceUsd    Decimal      @db.Decimal(8, 4)
+  imageUrl    String?
+  isAvailable Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+  category    MenuCategory @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([deletedAt])
+  @@map("menu_items")
+}
+
+model Order {
+  id                String         @id @default(uuid())
+  customerId        String
+  status            OrderStatus    @default(PENDING_PAYMENT)
+  deliveryType      DeliveryType?
+  deliveryAddress   String?
+  deliveryReference String?
+  deliveryZone      String?
+  totalUsd          Decimal        @db.Decimal(10, 4)
+  totalBs           Decimal        @db.Decimal(12, 2)
+  exchangeRateUsed  Decimal        @db.Decimal(10, 4)
+  paymentMethod     PaymentMethod?
+  paymentReference  String?
+  paymentImageUrl   String?
+  notes             String?
+  discountUsd       Decimal?       @db.Decimal(10, 4)
+  discountBs        Decimal?       @db.Decimal(12, 2)
+  promotionId       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  orderNumber       Int            @unique @default(autoincrement())
+  driverId          String?
+  driverPhone       String?
+  items             OrderItem[]
+  customer          Customer       @relation(fields: [customerId], references: [id])
+  driver            Driver?        @relation(fields: [driverId], references: [id])
+  review            Review?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([customerId, status])
+  @@index([createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([orderNumber])
+  @@index([driverId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  orderId      String
+  menuItemId   String
+  quantity     Int
+  unitPriceUsd Decimal  @db.Decimal(8, 4)
+  unitPriceBs  Decimal  @db.Decimal(10, 2)
+  subtotalBs   Decimal  @db.Decimal(12, 2)
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model Promotion {
+  id                String       @id @default(uuid())
+  title             String
+  description       String?
+  discountType      DiscountType
+  discountValue     Decimal      @db.Decimal(8, 4)
+  applicableItemIds Json         @default("[]")
+  activeDays        Json         @default("[0, 1, 2, 3, 4, 5, 6]")
+  startTime         String?
+  endTime           String?
+  isManuallyActive  Boolean      @default(false)
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+
+  @@index([isActive])
+  @@map("promotions")
+}
+
+model SystemConfig {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+model Driver {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  orders    Order[]
+
+  @@index([isActive])
+  @@map("drivers")
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  orderId    String   @unique
+  customerId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  order    Order    @relation(fields: [orderId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([rating])
+  @@index([createdAt(sort: Desc)])
+  @@map("reviews")
+}
+
+model AdminSession {
+  id         String   @id @default(uuid())
+  phone      String
+  command    String
+  rawMessage String
+  result     String?
+  success    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([phone])
+  @@index([createdAt])
+  @@map("admin_sessions")
+}
+
+model LlmUsageLog {
+  id               String     @id @default(uuid())
+  customerId       String?
+  orderId          String?
+  purpose          LlmPurpose
+  model            String
+  tokensInput      Int
+  tokensOutput     Int
+  tokensCacheRead  Int        @default(0)
+  tokensCacheWrite Int        @default(0)
+  costUsd          Decimal    @db.Decimal(10, 8)
+  durationMs       Int
+  createdAt        DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([purpose])
+  @@map("llm_usage_logs")
+}
+
+model MessageIdempotency {
+  messageId   String   @id
+  processedAt DateTime @default(now())
+
+  @@map("message_idempotency")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_UPLOADED
+  PAYMENT_CONFIRMED
+  PAYMENT_REJECTED
+  IN_KITCHEN
+  AWAITING_DRIVER_ASSIGNMENT
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum DeliveryType {
+  DELIVERY
+  PICKUP
+}
+
+enum PaymentMethod {
+  PAGO_MOVIL
+  CASH_ON_DELIVERY
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+  COMBO
+}
+
+enum LlmPurpose {
+  ORDER_EXTRACTION
+  FREE_RESPONSE
+  INTENT_CLASSIFICATION
+}

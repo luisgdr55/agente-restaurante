@@ -1,0 +1,1486 @@
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { env } from '../config/env';
+import { prisma } from '../db/prisma';
+import jwt from 'jsonwebtoken';
+import { emitOrderUpdated, emitStatsUpdated } from '../websocket/socket-server';
+import { getTopCustomers, getCustomerStats } from '../customers/customer-stats';
+import { invalidateConfigCache, invalidateMenuCache, getConfig } from '../menu/config-service';
+import { buildCartSummary, createOrder, updateOrderStatus } from '../orders/order-service';
+import { sendDeliveryNotifications } from '../agent/handlers/order-delivered.helper';
+import {
+  getDayPromos, addDayPromo, updateDayPromo, removeDayPromo, clearDayPromos,
+  getPromoDays, setPromoDays,
+} from '../menu/promo-day-service';
+import { whatsappClient } from '../whatsapp/client';
+import { TEMPLATES, textMessage, buttonMessage } from '../whatsapp/message-builder';
+import { getSession, updateSessionState } from '../redis/session-manager';
+import { logger } from '../utils/logger';
+
+async function verifyJwt(req: FastifyRequest, reply: FastifyReply) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return reply.code(401).send({ error: 'Unauthorized' });
+  try {
+    jwt.verify(auth.slice(7), env.JWT_SECRET);
+  } catch {
+    return reply.code(401).send({ error: 'Invalid token' });
+  }
+}
+
+function normalizeDriverPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('04') && digits.length === 11) return '58' + digits.slice(1);
+  return digits;
+}
+
+function getTokenRole(req: FastifyRequest): string | null {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return null;
+  try {
+    const decoded = jwt.verify(auth.slice(7), env.JWT_SECRET) as { role?: string };
+    return decoded.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function dashboardRoutes(app: FastifyInstance) {
+  // GET /api/orders — active orders (not DELIVERED/CANCELLED)
+  app.get('/api/orders', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.order.findMany({
+      where: {
+        status: { notIn: ['DELIVERED', 'CANCELLED'] },
+      },
+      include: {
+        customer: true,
+        items: { include: { menuItem: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  // GET /api/orders/today — all orders from today (midnight)
+  app.get('/api/orders/today', { preHandler: verifyJwt }, async (_req, _reply) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return prisma.order.findMany({
+      where: { createdAt: { gte: today } },
+      include: {
+        customer: true,
+        items: { include: { menuItem: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  // GET /api/orders/kitchen — orders visible to kitchen (IN_KITCHEN + PAYMENT_CONFIRMED)
+  app.get('/api/orders/kitchen', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.order.findMany({
+      where: {
+        status: { in: ['PAYMENT_CONFIRMED', 'IN_KITCHEN'] },
+      },
+      include: {
+        customer: true,
+        items: { include: { menuItem: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  });
+
+  // GET /api/stats — today's stats
+  app.get('/api/stats', { preHandler: verifyJwt }, async (_req, _reply) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [totalOrders, delivered, cancelled, inProgress, revenue, rateConfig] = await Promise.all([
+      prisma.order.count({ where: { createdAt: { gte: today } } }),
+      prisma.order.count({ where: { createdAt: { gte: today }, status: 'DELIVERED' } }),
+      prisma.order.count({ where: { createdAt: { gte: today }, status: 'CANCELLED' } }),
+      prisma.order.count({
+        where: {
+          createdAt: { gte: today },
+          status: { notIn: ['DELIVERED', 'CANCELLED'] },
+        },
+      }),
+      prisma.order.aggregate({
+        where: {
+          createdAt: { gte: today },
+          status: { in: ['DELIVERED', 'PAYMENT_CONFIRMED'] },
+        },
+        _sum: { totalBs: true },
+      }),
+      prisma.systemConfig.findUnique({ where: { key: 'USD_TO_BS_RATE' } }),
+    ]);
+
+    const revenueBs = Number(revenue._sum.totalBs ?? 0);
+    const rate = rateConfig ? parseFloat(rateConfig.value) : 1;
+    const revenueUsd = rate > 0 ? revenueBs / rate : 0;
+
+    return { totalOrders, delivered, cancelled, inProgress, revenueBs, revenueUsd };
+  });
+
+  // PATCH /api/orders/:id/status — update order status + notify customer via WhatsApp
+  app.patch<{ Params: { id: string }; Body: { status: string; reason?: string } }>(
+    '/api/orders/:id/status',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      const { status, reason } = req.body;
+
+      // Kitchen role may only mark orders as READY
+      const role = getTokenRole(req);
+      if (role === 'kitchen' && status !== 'READY') {
+        return reply.code(403).send({ error: 'Kitchen can only set status to READY' });
+      }
+
+      try {
+        const extraData: Record<string, unknown> = { status };
+        if (status === 'CANCELLED') { extraData.cancelledAt = new Date(); extraData.cancelReason = reason ?? 'Cancelado desde dashboard'; }
+        if (status === 'DELIVERED') extraData.deliveredAt = new Date();
+        // DELIVERY marcado como listo → pasa a AWAITING_DRIVER_ASSIGNMENT (no a READY)
+        if (status === 'READY') {
+          const orderForDelivery = await prisma.order.findUnique({ where: { id }, select: { deliveryType: true } });
+          if (orderForDelivery?.deliveryType === 'DELIVERY') {
+            extraData.status = 'AWAITING_DRIVER_ASSIGNMENT';
+          }
+        }
+
+        const order = await prisma.order.update({
+          where: { id },
+          data: extraData as never,
+          include: { customer: true, items: { include: { menuItem: true } } },
+        });
+        emitOrderUpdated(order);
+
+        // ── Notificar al cliente y al admin por WhatsApp ─────────────────
+        const customerPhone = order.customer.phone;
+        const customerName = order.customer.name ?? customerPhone;
+        const restaurantName = (await getConfig('RESTAURANT_NAME')) ?? 'el restaurante';
+        const adminPhone = await getConfig('ADMIN_PHONE');
+        const fId = String(order.orderNumber).padStart(4, '0');
+
+        // ── WhatsApp notifications (awaited so errors surface in logs) ──
+        try {
+          switch (status) {
+            case 'PAYMENT_CONFIRMED': {
+              const cartSummary = buildCartSummary(order.items);
+              const etaMinutes = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
+              await whatsappClient.sendMessage(TEMPLATES.paymentConfirmed(customerPhone, cartSummary));
+              await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaMinutes));
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `✅ *Dashboard* — Pago confirmado\n*#${fId}* · ${customerName}\nPedido en cocina 🍳`));
+              break;
+            }
+            case 'PAYMENT_REJECTED':
+              await whatsappClient.sendMessage(TEMPLATES.paymentRejected(customerPhone, reason));
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `❌ *Dashboard* — Pago rechazado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
+              break;
+            case 'IN_KITCHEN': {
+              const etaKitchen = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
+              await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaKitchen));
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `🍳 *Dashboard* — Enviado a cocina\n*#${fId}* · ${customerName}`));
+              break;
+            }
+            case 'READY':
+              if (order.deliveryType === 'DELIVERY') {
+                // DELIVERY → notificar al cliente que está listo, esperando motorizado
+                await whatsappClient.sendMessage(TEMPLATES.orderAwaitingDriver(customerPhone));
+                if (adminPhone) await whatsappClient.sendMessage(
+                  textMessage(
+                    adminPhone,
+                    `🛵 *Cocina* — Pedido listo para enviar\n*#${fId}* · ${customerName}\n\nAsigna el motorizado desde el dashboard.`,
+                  ),
+                );
+              } else {
+                // PICKUP → notificar al cliente inmediatamente
+                await whatsappClient.sendMessage(
+                  TEMPLATES.orderReady(customerPhone, 'PICKUP'),
+                );
+                if (adminPhone) await whatsappClient.sendMessage(
+                  buttonMessage(
+                    adminPhone,
+                    `🎉 *Cocina* — Pedido listo\n*#${fId}* · ${customerName} · PICKUP\n\n_Toca cuando lo entregues:_`,
+                    [{ id: `order_delivered:${order.id}`, title: '✅ Entregado' }],
+                  ),
+                );
+              }
+              break;
+            case 'DELIVERED':
+              await sendDeliveryNotifications(customerPhone, order.id);
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `✅ *Dashboard* — Pedido entregado\n*#${fId}* · ${customerName}`));
+              break;
+            case 'AWAITING_DRIVER_ASSIGNMENT':
+              // Notificar al cliente cuando se marca manualmente desde dashboard
+              await whatsappClient.sendMessage(TEMPLATES.orderAwaitingDriver(customerPhone));
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `🛵 *Dashboard* — Asignar motorizado\n*#${fId}* · ${customerName}`));
+              break;
+            case 'CANCELLED':
+              await whatsappClient.sendMessage(
+                textMessage(customerPhone, `❌ Tu pedido #${fId} fue cancelado.${reason ? `\n_Motivo: ${reason}_` : ''}\n\nDisculpa las molestias 🙏`),
+              );
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `❌ *Dashboard* — Pedido cancelado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
+              break;
+          }
+        } catch (err) {
+          logger.error({ err, orderId: id, status }, 'WhatsApp notification failed from dashboard');
+        }
+
+        // ── Sincronizar sesión Redis del cliente ─────────────────────────
+        void (async () => {
+          try {
+            const customerPhone = order.customer.phone;
+            const customerSession = await getSession(customerPhone);
+            if (customerSession) {
+              switch (status) {
+                case 'PAYMENT_CONFIRMED':
+                case 'IN_KITCHEN':
+                  if (['PAYMENT_UNDER_REVIEW', 'AWAITING_PAYMENT_PROOF'].includes(customerSession.state)) {
+                    await updateSessionState(customerPhone, 'ORDER_IN_KITCHEN', {
+                      customerId: customerSession.customerId,
+                      activeOrderId: order.id,
+                    });
+                  }
+                  break;
+                case 'READY':
+                  // PICKUP → ORDER_READY; DELIVERY → sigue en ORDER_IN_KITCHEN hasta asignación de motorizado
+                  if (order.deliveryType !== 'DELIVERY') {
+                    await updateSessionState(customerPhone, 'ORDER_READY', {
+                      customerId: customerSession.customerId,
+                      activeOrderId: order.id,
+                    });
+                  }
+                  break;
+                // DELIVERED: sesión ya gestionada por sendDeliveryNotifications
+                case 'PAYMENT_REJECTED':
+                  await updateSessionState(customerPhone, 'AWAITING_PAYMENT_PROOF', {
+                    customerId: customerSession.customerId,
+                    activeOrderId: order.id,
+                  });
+                  break;
+                case 'CANCELLED':
+                  await updateSessionState(customerPhone, 'MAIN_MENU', {
+                    customerId: customerSession.customerId,
+                    cart: [],
+                    activeOrderId: undefined,
+                  });
+                  break;
+              }
+            }
+          } catch { /* non-critical — no afecta respuesta al admin */ }
+        })();
+
+        // ── Estadísticas actualizadas ────────────────────────────────────
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const [totalOrders, delivered, cancelled, inProgress, revenue, rateConfig] = await Promise.all([
+          prisma.order.count({ where: { createdAt: { gte: today } } }),
+          prisma.order.count({ where: { createdAt: { gte: today }, status: 'DELIVERED' } }),
+          prisma.order.count({ where: { createdAt: { gte: today }, status: 'CANCELLED' } }),
+          prisma.order.count({
+            where: { createdAt: { gte: today }, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+          }),
+          prisma.order.aggregate({
+            where: { createdAt: { gte: today }, status: { in: ['DELIVERED', 'PAYMENT_CONFIRMED'] } },
+            _sum: { totalBs: true },
+          }),
+          prisma.systemConfig.findUnique({ where: { key: 'USD_TO_BS_RATE' } }),
+        ]);
+        const revenueBs = Number(revenue._sum.totalBs ?? 0);
+        const rate = rateConfig ? parseFloat(rateConfig.value) : 1;
+        const revenueUsd = rate > 0 ? revenueBs / rate : 0;
+        emitStatsUpdated({ totalOrders, delivered, cancelled, inProgress, revenueBs, revenueUsd });
+
+        return order;
+      } catch {
+        return reply.code(404).send({ error: 'Order not found' });
+      }
+    },
+  );
+
+  // ── Drivers ─────────────────────────────────────────────────────────────────
+
+  // GET /api/drivers — list all drivers
+  app.get('/api/drivers', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.driver.findMany({ orderBy: { createdAt: 'asc' } });
+  });
+
+  // POST /api/drivers — create driver
+  app.post<{ Body: { name: string; phone: string } }>(
+    '/api/drivers',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { name, phone } = req.body;
+      if (!name?.trim() || !phone?.trim()) {
+        return reply.code(400).send({ error: 'name and phone are required' });
+      }
+      try {
+        return await prisma.driver.create({ data: { name: name.trim(), phone: normalizeDriverPhone(phone.trim()) } });
+      } catch {
+        return reply.code(409).send({ error: 'Phone already registered' });
+      }
+    },
+  );
+
+  // PATCH /api/drivers/:id — toggle isActive or update name/phone
+  app.patch<{ Params: { id: string }; Body: { name?: string; phone?: string; isActive?: boolean } }>(
+    '/api/drivers/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      const { name, phone, isActive } = req.body;
+      const data: Record<string, unknown> = {};
+      if (name !== undefined) data.name = name.trim();
+      if (phone !== undefined) data.phone = normalizeDriverPhone(phone.trim());
+      if (isActive !== undefined) data.isActive = isActive;
+      try {
+        return await prisma.driver.update({ where: { id }, data });
+      } catch {
+        return reply.code(404).send({ error: 'Driver not found' });
+      }
+    },
+  );
+
+  // DELETE /api/drivers/:id — hard delete if no orders, soft delete (isActive=false) if has orders
+  app.delete<{ Params: { id: string } }>(
+    '/api/drivers/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      const orderCount = await prisma.order.count({ where: { driverId: id } });
+      if (orderCount > 0) {
+        await prisma.driver.update({ where: { id }, data: { isActive: false } });
+        return { softDeleted: true };
+      }
+      try {
+        await prisma.driver.delete({ where: { id } });
+        return { deleted: true };
+      } catch {
+        return reply.code(404).send({ error: 'Driver not found' });
+      }
+    },
+  );
+
+  // POST /api/orders/:id/assign-driver — assign driver and send WhatsApp notifications
+  app.post<{ Params: { id: string }; Body: { driverId: string } }>(
+    '/api/orders/:id/assign-driver',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id: orderId } = req.params;
+      const { driverId } = req.body;
+      if (!driverId) return reply.code(400).send({ error: 'driverId is required' });
+
+      try {
+        const { assignDriver } = await import('../orders/order-service');
+        const result = await assignDriver(orderId, driverId);
+
+        // Mensaje A — al cliente
+        await whatsappClient.sendMessage(
+          TEMPLATES.orderOutForDelivery(
+            result.customerPhone,
+            result.driverName,
+            result.driverPhone,
+            result.deliveryAddress,
+          ),
+        );
+
+        // Mensaje B — al motorizado
+        const refLine = result.deliveryReference
+          ? `🏠 Referencia: ${result.deliveryReference}\n`
+          : '';
+
+        const driverBody = result.isFirstContactToday
+          ? `Hola ${result.driverName}, soy el sistema de pedidos de *${result.restaurantName}*. Te enviamos los datos de tu próximo delivery.\n\n📦 *DELIVERY - ${result.restaurantName}*\n─────────────────────\n👤 Cliente: ${result.customerName}\n📱 Teléfono: ${result.customerPhone}\n📍 Dirección: ${result.deliveryAddress}\n${refLine}─────────────────────\n¿Algún problema? Llama al restaurante:\n${result.adminPhone ?? 'N/A'}\n\n_Cuando entregues responde ENTREGADO o presiona el botón 👇_`
+          : `📦 *DELIVERY - ${result.restaurantName}*\n─────────────────────\n👤 Cliente: ${result.customerName}\n📱 Teléfono: ${result.customerPhone}\n📍 Dirección: ${result.deliveryAddress}\n${refLine}─────────────────────\n\n_Cuando entregues responde ENTREGADO o presiona el botón 👇_`;
+
+        await whatsappClient.sendMessage(
+          buttonMessage(result.driverPhone, driverBody, [
+            { id: `driver_delivered:${result.order.id}`, title: '✅ Entregado' },
+          ]),
+        );
+
+        return result.order;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        if (msg === 'DRIVER_NOT_FOUND') return reply.code(404).send({ error: 'Driver not found' });
+        if (msg === 'ORDER_NOT_FOUND') return reply.code(404).send({ error: 'Order not found' });
+        if (msg === 'ORDER_NOT_AWAITING_DRIVER') return reply.code(409).send({ error: 'Order is not awaiting driver assignment' });
+        logger.error({ err, orderId, driverId }, 'assign-driver failed');
+        return reply.code(500).send({ error: 'Internal error' });
+      }
+    },
+  );
+
+  // GET /api/menu/items-flat — flat list of active menu items with prices
+  app.get('/api/menu/items-flat', { preHandler: verifyJwt }, async (_req, reply) => {
+    const rate = parseFloat((await getConfig('USD_TO_BS_RATE')) ?? '36.50');
+    const items = await prisma.menuItem.findMany({
+      where: { isAvailable: true },
+      include: { category: { select: { name: true } } },
+      orderBy: [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
+    });
+    return reply.send(items.map(i => ({
+      id: i.id,
+      name: i.name,
+      categoryName: i.category.name,
+      priceUsd: parseFloat(i.priceUsd.toString()),
+      priceBs: parseFloat(i.priceUsd.toString()) * rate,
+    })));
+  });
+
+  // POST /api/orders/manual — create order from dashboard
+  interface ManualOrderBody {
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    items: Array<{ menuItemId: string; quantity: number }>;
+    deliveryType: 'DELIVERY' | 'PICKUP';
+    deliveryAddress?: string;
+    paymentMethod: 'EFECTIVO' | 'PAGO_MOVIL';
+    paymentReference?: string;
+    notifyCustomer: boolean;
+  }
+  app.post<{ Body: ManualOrderBody }>('/api/orders/manual', { preHandler: verifyJwt }, async (req, reply) => {
+    const { customerId, customerName, customerPhone, items, deliveryType,
+            deliveryAddress, paymentMethod, paymentReference, notifyCustomer } = req.body;
+
+    if (!customerId && !customerPhone) {
+      return reply.code(400).send({ error: 'customerId or customerPhone is required' });
+    }
+    if (!items?.length) return reply.code(400).send({ error: 'items is required' });
+
+    // Resolve customer
+    let resolvedCustomerId = customerId ?? '';
+    if (!resolvedCustomerId) {
+      const phone = customerPhone!;
+      let cust = await prisma.customer.findUnique({ where: { phone } });
+      if (!cust) {
+        cust = await prisma.customer.create({
+          data: {
+            phone,
+            ...(customerName ? { name: customerName } : {}),
+            conversationState: { state: 'IDLE' },
+            stats: { create: {} },
+          },
+        });
+      }
+      resolvedCustomerId = cust.id;
+    }
+
+    // Load prices from DB
+    const menuItems = await prisma.menuItem.findMany({
+      where: { id: { in: items.map(i => i.menuItemId) } },
+    });
+    const cart = items.map(i => {
+      const mi = menuItems.find(m => m.id === i.menuItemId);
+      if (!mi) throw new Error(`MenuItem not found: ${i.menuItemId}`);
+      return {
+        menuItemId: i.menuItemId,
+        name: mi.name,
+        quantity: i.quantity,
+        unitPriceUsd: parseFloat(mi.priceUsd.toString()),
+      };
+    });
+
+    const deliveryFeeUsd = deliveryType === 'DELIVERY'
+      ? parseFloat((await getConfig('DELIVERY_FEE_USD')) ?? '0')
+      : 0;
+
+    const order = await createOrder({
+      customerId: resolvedCustomerId,
+      cart,
+      deliveryType,
+      ...(deliveryAddress ? { deliveryAddress } : {}),
+      paymentMethod: paymentMethod === 'EFECTIVO' ? 'CASH_ON_DELIVERY' : 'PAGO_MOVIL',
+      ...(paymentReference ? { notes: `Ref: ${paymentReference}` } : {}),
+      deliveryFeeUsd,
+    });
+
+    // Move to correct status
+    if (paymentMethod === 'EFECTIVO') {
+      await updateOrderStatus(order.id, 'PAYMENT_CONFIRMED');
+      await updateOrderStatus(order.id, 'IN_KITCHEN');
+    } else {
+      await updateOrderStatus(order.id, 'PAYMENT_UPLOADED');
+    }
+    const full = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { customer: true, items: { include: { menuItem: true } } },
+    });
+    emitOrderUpdated(full ?? order);
+
+    // Optional WhatsApp notification
+    if (notifyCustomer) {
+      const cust = await prisma.customer.findUnique({ where: { id: resolvedCustomerId } });
+      if (cust) {
+        const rate = parseFloat((await getConfig('USD_TO_BS_RATE')) ?? '36.50');
+        const totalBs = (cart.reduce((s, i) => s + i.quantity * i.unitPriceUsd, 0) + deliveryFeeUsd) * rate;
+        const itemLines = cart.map(i => `• ${i.quantity}x ${i.name}`).join('\n');
+        const msg =
+          `✅ *Pedido registrado*\n\n${itemLines}\n\n` +
+          `💰 Total: Bs ${totalBs.toFixed(2)}\n` +
+          (paymentMethod === 'EFECTIVO'
+            ? '💵 Pago en efectivo al recibir'
+            : '📋 Pendiente verificación de pago');
+        await whatsappClient.sendMessage(textMessage(cust.phone, msg)).catch(() => undefined);
+      }
+    }
+
+    return reply.send({ ok: true, orderId: order.id });
+  });
+
+  // GET /api/config — all SystemConfig key-value pairs
+  app.get('/api/config', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.systemConfig.findMany({ orderBy: { key: 'asc' } });
+  });
+
+  // PATCH /api/config — update a SystemConfig key
+  app.patch<{ Body: { key: string; value: string } }>(
+    '/api/config',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { key, value } = req.body;
+      try {
+        const result = await prisma.systemConfig.update({ where: { key }, data: { value } });
+        await invalidateConfigCache(key as never);
+        return result;
+      } catch {
+        return reply.code(404).send({ error: 'Config key not found' });
+      }
+    },
+  );
+
+  // ── Menu endpoints ────────────────────────────────────────────────────────
+
+  // GET /api/menu — active items for bot (cached, no auth needed internally)
+  app.get('/api/menu', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.menuItem.findMany({
+      where: { isAvailable: true, deletedAt: null },
+      include: { category: true },
+      orderBy: [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
+    });
+  });
+
+  // GET /api/menu/full — all categories + all items (including unavailable) for admin editing
+  app.get('/api/menu/full', { preHandler: verifyJwt }, async (_req, _reply) => {
+    return prisma.menuCategory.findMany({
+      where: { isActive: true },
+      include: {
+        items: {
+          where: { deletedAt: null },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+  });
+
+  // POST /api/menu/categories — create category
+  app.post<{ Body: { name: string; emoji?: string } }>(
+    '/api/menu/categories',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { name, emoji = '🍽️' } = req.body;
+      const count = await prisma.menuCategory.count({ where: { isActive: true } });
+      const category = await prisma.menuCategory.create({
+        data: { name, emoji, sortOrder: count },
+        include: { items: true },
+      });
+      await invalidateMenuCache();
+      return reply.code(201).send(category);
+    },
+  );
+
+  // PATCH /api/menu/categories/:id — update category
+  app.patch<{ Params: { id: string }; Body: { name?: string; emoji?: string } }>(
+    '/api/menu/categories/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      try {
+        const updated = await prisma.menuCategory.update({
+          where: { id },
+          data: req.body,
+          include: { items: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } },
+        });
+        await invalidateMenuCache();
+        return updated;
+      } catch {
+        return reply.code(404).send({ error: 'Category not found' });
+      }
+    },
+  );
+
+  // DELETE /api/menu/categories/:id — deactivate category (soft delete)
+  app.delete<{ Params: { id: string } }>(
+    '/api/menu/categories/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      try {
+        await prisma.menuCategory.update({ where: { id }, data: { isActive: false } });
+        await invalidateMenuCache();
+        return reply.code(204).send();
+      } catch {
+        return reply.code(404).send({ error: 'Category not found' });
+      }
+    },
+  );
+
+  // POST /api/menu/items — create item
+  app.post<{ Body: { categoryId: string; name: string; description?: string; priceUsd: number; isAvailable?: boolean } }>(
+    '/api/menu/items',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { categoryId, name, description, priceUsd, isAvailable = true } = req.body;
+      const count = await prisma.menuItem.count({ where: { categoryId, deletedAt: null } });
+      const item = await prisma.menuItem.create({
+        data: { categoryId, name, description: description ?? null, priceUsd, isAvailable, sortOrder: count },
+      });
+      await invalidateMenuCache(categoryId);
+      return reply.code(201).send(item);
+    },
+  );
+
+  // PATCH /api/menu/items/:id — update item fields
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/menu/items/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      try {
+        const updated = await prisma.menuItem.update({
+          where: { id },
+          data: req.body as never,
+        });
+        await invalidateMenuCache(updated.categoryId);
+        return updated;
+      } catch {
+        return reply.code(404).send({ error: 'Menu item not found' });
+      }
+    },
+  );
+
+  // DELETE /api/menu/items/:id — soft delete item
+  app.delete<{ Params: { id: string } }>(
+    '/api/menu/items/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      try {
+        const item = await prisma.menuItem.update({
+          where: { id },
+          data: { deletedAt: new Date(), isAvailable: false },
+        });
+        await invalidateMenuCache(item.categoryId);
+        return reply.code(204).send();
+      } catch {
+        return reply.code(404).send({ error: 'Menu item not found' });
+      }
+    },
+  );
+
+  // PATCH /api/menu/:id — kept for backwards compatibility
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/menu/:id',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+      try {
+        const updated = await prisma.menuItem.update({
+          where: { id },
+          data: req.body as never,
+          include: { category: true },
+        });
+        await invalidateMenuCache(updated.categoryId);
+        return updated;
+      } catch {
+        return reply.code(404).send({ error: 'Menu item not found' });
+      }
+    },
+  );
+
+  // ── GET /api/customers — full customer list with live-computed analytics ──
+  app.get<{ Querystring: { search?: string; sortBy?: string; order?: string } }>(
+    '/api/customers',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { search, sortBy = 'totalOrders', order = 'desc' } = req.query;
+
+      const customers = await prisma.customer.findMany({
+        where: {
+          deletedAt: null,
+          ...(search ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search } },
+            ],
+          } : {}),
+        },
+        include: {
+          orders: {
+            include: { items: { include: { menuItem: { select: { name: true } } } } },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+      const result = customers.map((c) => {
+        const allOrders = c.orders;
+        const completed = allOrders.filter((o) => o.status === 'DELIVERED');
+        const cancelled = allOrders.filter((o) => o.status === 'CANCELLED');
+
+        const totalSpentUsd = completed.reduce((s, o) => s + Number(o.totalUsd), 0);
+        const totalSpentBs  = completed.reduce((s, o) => s + Number(o.totalBs), 0);
+        const avgOrderValueUsd = completed.length > 0 ? totalSpentUsd / completed.length : 0;
+
+        // Day-of-week order frequency
+        const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+        for (const o of allOrders) dayCounts[new Date(o.createdAt).getDay()]++;
+        const maxDay = Math.max(...dayCounts);
+        const favoriteDay = maxDay > 0 ? DAY_NAMES[dayCounts.indexOf(maxDay)] : null;
+
+        // Favorite item (by quantity)
+        const itemCounts = new Map<string, { name: string; count: number }>();
+        for (const o of allOrders) {
+          for (const item of o.items) {
+            const ex = itemCounts.get(item.menuItemId);
+            if (ex) ex.count += item.quantity;
+            else itemCounts.set(item.menuItemId, { name: item.menuItem?.name ?? '?', count: item.quantity });
+          }
+        }
+        let favoriteItemName: string | null = null;
+        let maxCount = 0;
+        for (const { name, count } of itemCounts.values()) {
+          if (count > maxCount) { maxCount = count; favoriteItemName = name; }
+        }
+
+        const sorted = [...allOrders].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+        return {
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          savedAddress: (c as any).savedAddress as string | null,
+          createdAt: c.createdAt,
+          totalOrders: allOrders.length,
+          completedOrders: completed.length,
+          cancelledOrders: cancelled.length,
+          totalSpentUsd,
+          totalSpentBs,
+          avgOrderValueUsd,
+          favoriteItemName,
+          favoriteDay,
+          dayCounts,
+          firstOrderAt: sorted[0]?.createdAt ?? null,
+          lastOrderAt: sorted[sorted.length - 1]?.createdAt ?? null,
+        };
+      });
+
+      // Sort
+      const dir = order === 'asc' ? 1 : -1;
+      const sorted = [...result].sort((a, b) => {
+        switch (sortBy) {
+          case 'totalSpentUsd': return dir * (a.totalSpentUsd - b.totalSpentUsd);
+          case 'totalOrders':   return dir * (a.totalOrders - b.totalOrders);
+          case 'lastOrderAt': {
+            const ta = a.lastOrderAt?.getTime() ?? 0;
+            const tb = b.lastOrderAt?.getTime() ?? 0;
+            return dir * (ta - tb);
+          }
+          case 'name':
+            return dir * (a.name ?? a.phone).localeCompare(b.name ?? b.phone);
+          default: return dir * (a.totalOrders - b.totalOrders);
+        }
+      });
+
+      return reply.send(sorted);
+    },
+  );
+
+  // ── Customer analytics ────────────────────────────────────────────────────
+  // Returns top customers by total orders, falling back to live aggregation
+  // if CustomerStats is not yet populated (e.g. no delivered orders yet).
+  app.get('/api/customers/top', { preHandler: verifyJwt }, async (_req, reply) => {
+    // First try the pre-computed stats table
+    const precomputed = await getTopCustomers(10);
+    if (precomputed.length > 0) return reply.send(precomputed);
+
+    // Fallback: aggregate directly from orders + customers
+    const customers = await prisma.customer.findMany({
+      where: { deletedAt: null },
+      include: {
+        orders: {
+          where: { status: { notIn: ['CANCELLED'] } },
+          include: { items: { include: { menuItem: true } } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+
+    const result = customers
+      .filter((c) => c.orders.length > 0)
+      .map((c) => {
+        const totalOrders = c.orders.length;
+        const completedOrders = c.orders.filter((o) => o.status === 'DELIVERED').length;
+        const cancelledOrders = 0;
+        const totalSpentUsd = c.orders.reduce((s, o) => s + Number(o.totalUsd), 0);
+        const totalSpentBs = c.orders.reduce((s, o) => s + Number(o.totalBs), 0);
+        const avgOrderValueUsd = totalOrders > 0 ? totalSpentUsd / totalOrders : 0;
+        const lastOrderAt = c.orders[c.orders.length - 1]?.createdAt ?? null;
+
+        // Most ordered item
+        const itemCounts = new Map<string, { name: string; count: number }>();
+        for (const order of c.orders) {
+          for (const item of order.items) {
+            const ex = itemCounts.get(item.menuItemId);
+            if (ex) ex.count += item.quantity;
+            else itemCounts.set(item.menuItemId, { name: item.menuItem?.name ?? '?', count: item.quantity });
+          }
+        }
+        let favoriteItemName: string | null = null;
+        let max = 0;
+        for (const { name, count } of itemCounts.values()) {
+          if (count > max) { max = count; favoriteItemName = name; }
+        }
+
+        return {
+          customerId: c.id,
+          totalOrders,
+          completedOrders,
+          cancelledOrders,
+          totalSpentUsd,
+          totalSpentBs,
+          avgOrderValueUsd,
+          lastOrderAt,
+          firstOrderAt: c.orders[0]?.createdAt ?? null,
+          favoriteItemId: null,
+          favoriteItemName,
+          customer: { id: c.id, name: c.name, phone: c.phone },
+        };
+      })
+      .sort((a, b) => b.totalOrders - a.totalOrders);
+
+    return reply.send(result);
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/customers/:id/stats',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const stats = await getCustomerStats(req.params.id);
+      if (!stats) return reply.status(404).send({ error: 'Not found' });
+      return reply.send(stats);
+    },
+  );
+
+  // ── Promos del día ────────────────────────────────────────────────────────
+
+  // Helper: find or create the "🔥 PROMO DÍA" category and return its id
+  async function getOrCreatePromoCategoryId(): Promise<string> {
+    let cat = await prisma.menuCategory.findFirst({ where: { name: 'PROMO DÍA', isActive: true } });
+    if (!cat) {
+      const count = await prisma.menuCategory.count({ where: { isActive: true } });
+      cat = await prisma.menuCategory.create({ data: { name: 'PROMO DÍA', emoji: '🔥', sortOrder: count } });
+    }
+    return cat.id;
+  }
+
+  // Helper: get current exchange rate
+  async function getCurrentRate(): Promise<number> {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: 'USD_TO_BS_RATE' } });
+    return cfg ? parseFloat(cfg.value) || 1 : 1;
+  }
+
+  // GET /api/promos/day — listar promos del día
+  app.get('/api/promos/day', { preHandler: verifyJwt }, async (_req, reply) => {
+    const promos = await getDayPromos();
+    return reply.send(promos);
+  });
+
+  // POST /api/promos/day — agregar promo + auto-crear menu item en categoría PROMO DÍA
+  app.post<{ Body: { name: string; description?: string; priceBs: number } }>(
+    '/api/promos/day',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { name, description, priceBs } = req.body;
+      if (!name?.trim()) return reply.code(400).send({ error: 'name required' });
+
+      const rate = await getCurrentRate();
+      const priceUsd = priceBs > 0 && rate > 0 ? priceBs / rate : 0;
+
+      const categoryId = await getOrCreatePromoCategoryId();
+      const itemCount = await prisma.menuItem.count({ where: { categoryId, deletedAt: null } });
+      const menuItem = await prisma.menuItem.create({
+        data: {
+          categoryId,
+          name: name.trim(),
+          description: description?.trim() || null,
+          priceUsd: priceUsd.toFixed(10),
+          isAvailable: true,
+          sortOrder: itemCount,
+        },
+      });
+      await invalidateMenuCache(categoryId);
+
+      const trimmedDesc = description?.trim();
+      const count = await addDayPromo({
+        name: name.trim(),
+        ...(trimmedDesc && { description: trimmedDesc }),
+        priceBs: Number(priceBs) || 0,
+        menuItemId: menuItem.id,
+        autoCreated: true,
+      });
+      return reply.code(201).send({ count });
+    },
+  );
+
+  // PATCH /api/promos/day/:index — editar promo + actualizar menu item si fue auto-creado
+  app.patch<{ Params: { index: string }; Body: { name?: string; description?: string; priceBs?: number } }>(
+    '/api/promos/day/:index',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const idx = parseInt(req.params.index, 10);
+      const { name, description, priceBs } = req.body;
+
+      const promos = await getDayPromos();
+      const promo = promos[idx];
+
+      if (promo?.autoCreated && promo.menuItemId) {
+        const itemUpdate: Record<string, unknown> = {};
+        if (name !== undefined) itemUpdate.name = name.trim();
+        if (description !== undefined) itemUpdate.description = description.trim() || null;
+        if (priceBs !== undefined) {
+          const rate = await getCurrentRate();
+          itemUpdate.priceUsd = rate > 0 ? (Number(priceBs) / rate).toFixed(10) : '0';
+        }
+        if (Object.keys(itemUpdate).length > 0) {
+          await prisma.menuItem.update({ where: { id: promo.menuItemId }, data: itemUpdate as never });
+          await invalidateMenuCache();
+        }
+      }
+
+      const update: Record<string, unknown> = {};
+      if (name !== undefined) update.name = name.trim();
+      if (description !== undefined) update.description = description.trim() || undefined;
+      if (priceBs !== undefined) update.priceBs = Number(priceBs) || 0;
+      await updateDayPromo(idx, update as never);
+      return reply.code(204).send();
+    },
+  );
+
+  // DELETE /api/promos/day — eliminar todas las promos + desactivar sus menu items
+  app.delete('/api/promos/day', { preHandler: verifyJwt }, async (_req, reply) => {
+    const promos = await getDayPromos();
+    const autoIds = promos.filter((p) => p.autoCreated && p.menuItemId).map((p) => p.menuItemId!);
+    if (autoIds.length > 0) {
+      await prisma.menuItem.updateMany({ where: { id: { in: autoIds } }, data: { deletedAt: new Date(), isAvailable: false } });
+      await invalidateMenuCache();
+    }
+    await clearDayPromos();
+    return reply.code(204).send();
+  });
+
+  // DELETE /api/promos/day/:index — eliminar una promo + desactivar su menu item
+  app.delete<{ Params: { index: string } }>(
+    '/api/promos/day/:index',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const idx = parseInt(req.params.index, 10);
+      const promos = await getDayPromos();
+      const promo = promos[idx];
+      if (promo?.autoCreated && promo.menuItemId) {
+        await prisma.menuItem.update({ where: { id: promo.menuItemId }, data: { deletedAt: new Date(), isAvailable: false } });
+        await invalidateMenuCache();
+      }
+      await removeDayPromo(idx);
+      return reply.code(204).send();
+    },
+  );
+
+  // GET /api/promos/days — obtener días de promo configurados
+  app.get('/api/promos/days', { preHandler: verifyJwt }, async (_req, reply) => {
+    const days = await getPromoDays();
+    return reply.send({ days });
+  });
+
+  // PUT /api/promos/days — configurar días de promo
+  app.put<{ Body: { days: number[] } }>(
+    '/api/promos/days',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { days } = req.body;
+      if (!Array.isArray(days)) return reply.code(400).send({ error: 'days must be an array' });
+      await setPromoDays(days);
+      return reply.send({ days });
+    },
+  );
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+
+  function getPeriodStart(period: string): Date | undefined {
+    const now = Date.now();
+    switch (period) {
+      case 'today': {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+      case 'week':  return new Date(now - 7  * 24 * 60 * 60 * 1000);
+      case 'month': return new Date(now - 30 * 24 * 60 * 60 * 1000);
+      case 'year':  return new Date(now - 365 * 24 * 60 * 60 * 1000);
+      default:      return undefined; // 'all'
+    }
+  }
+
+  // GET /api/analytics/products?period=today|week|month|year|all
+  app.get<{ Querystring: { period?: string } }>(
+    '/api/analytics/products',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const from = getPeriodStart(req.query.period ?? 'month');
+      const orders = await prisma.order.findMany({
+        where: { status: 'DELIVERED', ...(from && { createdAt: { gte: from } }) },
+        include: { items: { include: { menuItem: { select: { id: true, name: true } } } } },
+      });
+
+      const map = new Map<string, { name: string; units: number; revenueBs: number; revenueUsd: number }>();
+      for (const order of orders) {
+        for (const item of order.items) {
+          const ex = map.get(item.menuItemId);
+          const bs  = Number(item.subtotalBs);
+          const usd = Number(item.unitPriceUsd) * item.quantity;
+          if (ex) {
+            ex.units      += item.quantity;
+            ex.revenueBs  += bs;
+            ex.revenueUsd += usd;
+          } else {
+            map.set(item.menuItemId, {
+              name: item.menuItem?.name ?? '?',
+              units: item.quantity,
+              revenueBs: bs,
+              revenueUsd: usd,
+            });
+          }
+        }
+      }
+
+      const result = Array.from(map.entries())
+        .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => b.units - a.units)
+        .slice(0, 15);
+
+      return reply.send(result);
+    },
+  );
+
+  // GET /api/analytics/customers?period=today|week|month|year|all
+  app.get<{ Querystring: { period?: string } }>(
+    '/api/analytics/customers',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const from = getPeriodStart(req.query.period ?? 'month');
+      const orders = await prisma.order.findMany({
+        where: { status: 'DELIVERED', ...(from && { createdAt: { gte: from } }) },
+        include: { customer: { select: { id: true, name: true, phone: true } } },
+      });
+
+      const map = new Map<string, { name: string | null; phone: string; orders: number; totalSpentBs: number; totalSpentUsd: number }>();
+      for (const order of orders) {
+        const c = order.customer;
+        if (!c) continue;
+        const ex = map.get(c.id);
+        if (ex) {
+          ex.orders++;
+          ex.totalSpentBs  += Number(order.totalBs);
+          ex.totalSpentUsd += Number(order.totalUsd);
+        } else {
+          map.set(c.id, {
+            name: c.name,
+            phone: c.phone,
+            orders: 1,
+            totalSpentBs:  Number(order.totalBs),
+            totalSpentUsd: Number(order.totalUsd),
+          });
+        }
+      }
+
+      const result = Array.from(map.entries())
+        .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => b.orders - a.orders)
+        .slice(0, 10);
+
+      return reply.send(result);
+    },
+  );
+
+  // ── Financials ─────────────────────────────────────────────────────────────
+
+  /** Returns { from, to, prevFrom, prevTo } for current and previous window */
+  function getFinancialPeriod(period: string): {
+    from: Date; to: Date; prevFrom: Date; prevTo: Date;
+  } {
+    const now = new Date();
+    let from: Date;
+    let prevFrom: Date;
+    let prevTo: Date;
+
+    switch (period) {
+      case 'today': {
+        from = new Date(now); from.setHours(0, 0, 0, 0);
+        prevTo = new Date(from);
+        prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - 1);
+        break;
+      }
+      case 'week': {
+        from = new Date(now.getTime() - 7 * 86400_000);
+        prevTo = new Date(from);
+        prevFrom = new Date(from.getTime() - 7 * 86400_000);
+        break;
+      }
+      case 'year': {
+        from = new Date(now.getTime() - 365 * 86400_000);
+        prevTo = new Date(from);
+        prevFrom = new Date(from.getTime() - 365 * 86400_000);
+        break;
+      }
+      default: { // month
+        from = new Date(now.getTime() - 30 * 86400_000);
+        prevTo = new Date(from);
+        prevFrom = new Date(from.getTime() - 30 * 86400_000);
+      }
+    }
+    return { from, to: now, prevFrom, prevTo };
+  }
+
+  // GET /api/financials/summary?period=today|week|month|year
+  app.get<{ Querystring: { period?: string } }>(
+    '/api/financials/summary',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const period = req.query.period ?? 'month';
+      const { from, to, prevFrom, prevTo } = getFinancialPeriod(period);
+
+      const [currentOrders, prevOrders] = await Promise.all([
+        prisma.order.findMany({
+          where: { createdAt: { gte: from, lt: to } },
+          select: {
+            status: true,
+            totalBs: true, totalUsd: true,
+            discountBs: true, discountUsd: true,
+            paymentMethod: true, deliveryType: true,
+          },
+        }),
+        prisma.order.findMany({
+          where: { status: 'DELIVERED', createdAt: { gte: prevFrom, lt: prevTo } },
+          select: { totalBs: true, totalUsd: true },
+        }),
+      ]);
+
+      const delivered = currentOrders.filter((o) => o.status === 'DELIVERED');
+      const cancelled = currentOrders.filter((o) => o.status === 'CANCELLED');
+      const terminal  = ['DELIVERED', 'CANCELLED'];
+      const inProgress = currentOrders.filter((o) => !terminal.includes(o.status));
+
+      const grossBs  = delivered.reduce((s, o) => s + Number(o.totalBs),  0);
+      const grossUsd = delivered.reduce((s, o) => s + Number(o.totalUsd), 0);
+      const discBs   = delivered.reduce((s, o) => s + Number(o.discountBs  ?? 0), 0);
+      const discUsd  = delivered.reduce((s, o) => s + Number(o.discountUsd ?? 0), 0);
+
+      const prevGrossBs  = prevOrders.reduce((s, o) => s + Number(o.totalBs),  0);
+      const prevGrossUsd = prevOrders.reduce((s, o) => s + Number(o.totalUsd), 0);
+
+      const total = delivered.length + cancelled.length;
+      const conversionRate = total > 0 ? (delivered.length / total) * 100 : 0;
+      const avgTicketBs    = delivered.length > 0 ? grossBs  / delivered.length : 0;
+      const avgTicketUsd   = delivered.length > 0 ? grossUsd / delivered.length : 0;
+
+      // Delivery split (only delivered orders)
+      const deliveryOrders = delivered.filter((o) => o.deliveryType === 'DELIVERY');
+      const pickupOrders   = delivered.filter((o) => o.deliveryType === 'PICKUP');
+
+      // Payment split
+      const pagoMovil = delivered.filter((o) => o.paymentMethod === 'PAGO_MOVIL');
+      const cash      = delivered.filter((o) => o.paymentMethod === 'CASH_ON_DELIVERY');
+
+      // vs previous period
+      const pct = (curr: number, prev: number): number | null =>
+        prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null;
+
+      const prevAvgTicketBs = prevOrders.length > 0 ? prevGrossBs / prevOrders.length : 0;
+
+      return reply.send({
+        period,
+        grossRevenueBs:  grossBs,
+        grossRevenueUsd: grossUsd,
+        discountBs:  discBs,
+        discountUsd: discUsd,
+        netRevenueBs:  grossBs  - discBs,
+        netRevenueUsd: grossUsd - discUsd,
+        totalOrders:      currentOrders.length,
+        deliveredOrders:  delivered.length,
+        cancelledOrders:  cancelled.length,
+        inProgressOrders: inProgress.length,
+        conversionRate:   Math.round(conversionRate * 10) / 10,
+        avgTicketBs:  Math.round(avgTicketBs  * 100) / 100,
+        avgTicketUsd: Math.round(avgTicketUsd * 100) / 100,
+        deliveryCount:    deliveryOrders.length,
+        pickupCount:      pickupOrders.length,
+        deliveryRevenueBs: deliveryOrders.reduce((s, o) => s + Number(o.totalBs), 0),
+        pickupRevenueBs:   pickupOrders.reduce((s, o) => s + Number(o.totalBs), 0),
+        pagoMovilCount:    pagoMovil.length,
+        cashCount:         cash.length,
+        pagoMovilRevenueBs: pagoMovil.reduce((s, o) => s + Number(o.totalBs), 0),
+        cashRevenueBs:      cash.reduce((s, o) => s + Number(o.totalBs), 0),
+        vsPrevRevenuePct: pct(grossBs,       prevGrossBs),
+        vsPrevOrdersPct:  pct(delivered.length, prevOrders.length),
+        vsPrevTicketPct:  pct(avgTicketBs,   prevAvgTicketBs),
+      });
+    },
+  );
+
+  // GET /api/financials/chart?period=week|month|year
+  app.get<{ Querystring: { period?: string } }>(
+    '/api/financials/chart',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const period = req.query.period ?? 'month';
+      const { from } = getFinancialPeriod(period);
+
+      const orders = await prisma.order.findMany({
+        where: { status: 'DELIVERED', createdAt: { gte: from } },
+        select: { createdAt: true, totalBs: true, totalUsd: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const groupByYear = period === 'year';
+
+      const map = new Map<string, { revenueBs: number; revenueUsd: number; orders: number }>();
+      for (const o of orders) {
+        const key = groupByYear
+          ? o.createdAt.toISOString().slice(0, 7)   // YYYY-MM
+          : o.createdAt.toISOString().slice(0, 10);  // YYYY-MM-DD
+        const ex = map.get(key) ?? { revenueBs: 0, revenueUsd: 0, orders: 0 };
+        ex.revenueBs  += Number(o.totalBs);
+        ex.revenueUsd += Number(o.totalUsd);
+        ex.orders++;
+        map.set(key, ex);
+      }
+
+      // Fill all dates/months with 0 if no orders
+      const points: { date: string; revenueBs: number; revenueUsd: number; orders: number }[] = [];
+      const cursor = new Date(from);
+      const now = new Date();
+
+      if (groupByYear) {
+        // Monthly buckets for year view
+        cursor.setDate(1);
+        while (cursor <= now) {
+          const key = cursor.toISOString().slice(0, 7);
+          points.push({ date: key, ...(map.get(key) ?? { revenueBs: 0, revenueUsd: 0, orders: 0 }) });
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+      } else {
+        // Daily buckets
+        while (cursor <= now) {
+          const key = cursor.toISOString().slice(0, 10);
+          points.push({ date: key, ...(map.get(key) ?? { revenueBs: 0, revenueUsd: 0, orders: 0 }) });
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+
+      return reply.send(points);
+    },
+  );
+
+  // ── Reviews ───────────────────────────────────────────────────────────────
+
+  // GET /api/reviews?rating=&from=&to=&limit=&offset=
+  app.get<{ Querystring: { rating?: string; from?: string; to?: string; limit?: string; offset?: string } }>(
+    '/api/reviews',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const where: Record<string, unknown> = {};
+      if (req.query.rating) where['rating'] = parseInt(req.query.rating, 10);
+      if (req.query.from || req.query.to) {
+        const createdAt: Record<string, Date> = {};
+        if (req.query.from) createdAt['gte'] = new Date(req.query.from);
+        if (req.query.to)   createdAt['lte'] = new Date(req.query.to);
+        where['createdAt'] = createdAt;
+      }
+
+      const limit  = Math.min(parseInt(req.query.limit  ?? '50', 10), 200);
+      const offset = parseInt(req.query.offset ?? '0', 10);
+
+      const [reviews, total] = await Promise.all([
+        prisma.review.findMany({
+          where,
+          include: {
+            customer: { select: { id: true, name: true, phone: true } },
+            order:    { select: { orderNumber: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        }),
+        prisma.review.count({ where }),
+      ]);
+
+      return reply.send({ reviews, total, limit, offset });
+    },
+  );
+
+  // GET /api/reviews/stats — promedio global + distribución
+  app.get('/api/reviews/stats', { preHandler: verifyJwt }, async (_req, reply) => {
+    const [agg, distribution] = await Promise.all([
+      prisma.review.aggregate({ _avg: { rating: true }, _count: { id: true } }),
+      prisma.review.groupBy({ by: ['rating'], _count: { rating: true }, orderBy: { rating: 'asc' } }),
+    ]);
+
+    const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const row of distribution) dist[row.rating] = row._count.rating;
+
+    return reply.send({
+      averageRating: agg._avg.rating ?? 0,
+      totalReviews: agg._count.id,
+      distribution: dist,
+    });
+  });
+
+  // ── GET /api/customers/search — búsqueda liviana por teléfono con estado de sesión ──
+  app.get<{ Querystring: { phone?: string } }>(
+    '/api/customers/search',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { phone } = req.query;
+      if (!phone || phone.trim().length < 3) return reply.send([]);
+
+      const customers = await prisma.customer.findMany({
+        where: {
+          deletedAt: null,
+          phone: { contains: phone.trim() },
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          orders: {
+            where: { status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+            select: { id: true, orderNumber: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+        take: 10,
+      });
+
+      const result = await Promise.all(
+        customers.map(async (c) => {
+          const session = await getSession(c.phone).catch(() => null);
+          const activeOrder = c.orders[0] ?? null;
+          return {
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            sessionState: session?.state ?? null,
+            activeOrderId: activeOrder?.id ?? null,
+            activeOrderNumber: activeOrder?.orderNumber ?? null,
+            activeOrderStatus: activeOrder?.status ?? null,
+          };
+        }),
+      );
+
+      return reply.send(result);
+    },
+  );
+
+  // ── POST /api/customers/:id/reset-session — reset de emergencia ──
+  app.post<{ Params: { id: string } }>(
+    '/api/customers/:id/reset-session',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const { id } = req.params;
+
+      const customer = await prisma.customer.findUnique({
+        where: { id },
+        select: { id: true, name: true, phone: true },
+      });
+      if (!customer) return reply.code(404).send({ error: 'Customer not found' });
+
+      // Cancelar orden activa si existe
+      const activeOrder = await prisma.order.findFirst({
+        where: { customerId: id, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+        select: { id: true, orderNumber: true },
+      });
+      if (activeOrder) {
+        await prisma.order.update({
+          where: { id: activeOrder.id },
+          data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'Reset de sesión desde dashboard' },
+        });
+        const updatedOrder = await prisma.order.findUnique({
+          where: { id: activeOrder.id },
+          include: { customer: true, items: { include: { menuItem: true } } },
+        });
+        if (updatedOrder) emitOrderUpdated(updatedOrder);
+      }
+
+      // Resetear sesión Redis
+      const existingSession = await getSession(customer.phone).catch(() => null);
+      await updateSessionState(customer.phone, 'MAIN_MENU', {
+        customerId: existingSession?.customerId ?? id,
+        customerName: existingSession?.customerName ?? customer.name ?? undefined,
+        cart: [],
+        activeOrderId: undefined,
+      });
+
+      // Notificar al cliente
+      try {
+        await whatsappClient.sendMessage(
+          textMessage(
+            customer.phone,
+            '¡Hola! Tuvimos un pequeño inconveniente técnico pero ya está resuelto 😊\nPuedes hacer tu pedido normalmente.',
+          ),
+        );
+      } catch (err) {
+        logger.error({ err, customerId: id }, 'WhatsApp notification failed on session reset');
+      }
+
+      logger.info(
+        { customerId: id, phone: customer.phone, cancelledOrderId: activeOrder?.id ?? null },
+        'Session reset from dashboard',
+      );
+
+      return reply.send({
+        ok: true,
+        cancelledOrderId: activeOrder?.id ?? null,
+        cancelledOrderNumber: activeOrder?.orderNumber ?? null,
+      });
+    },
+  );
+
+  // GET /api/customers/:id/reviews — historial de un cliente
+  app.get<{ Params: { id: string } }>(
+    '/api/customers/:id/reviews',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const reviews = await prisma.review.findMany({
+        where: { customerId: req.params.id },
+        include: { order: { select: { orderNumber: true, createdAt: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const avg = reviews.length > 0
+        ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+        : 0;
+
+      return reply.send({ reviews, averageRating: avg, total: reviews.length });
+    },
+  );
+}

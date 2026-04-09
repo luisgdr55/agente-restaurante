@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "paths": {
+      "@config/*": ["./src/config/*"],
+      "@db/*": ["./src/db/*"],
+      "@redis/*": ["./src/redis/*"],
+      "@whatsapp/*": ["./src/whatsapp/*"],
+      "@agent/*": ["./src/agent/*"],
+      "@llm/*": ["./src/llm/*"],
+      "@ocr/*": ["./src/ocr/*"],
+      "@admin/*": ["./src/admin/*"],
+      "@orders/*": ["./src/orders/*"],
+      "@menu/*": ["./src/menu/*"],
+      "@notifications/*": ["./src/notifications/*"],
+      "@dashboard/*": ["./src/dashboard/*"],
+      "@workers/*": ["./src/workers/*"],
+      "@utils/*": ["./src/utils/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "dashboard"]
+}
