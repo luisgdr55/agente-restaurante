@@ -52,6 +52,7 @@ function makeSession(overrides: Partial<SessionData> = {}): SessionData {
 function makeCustomer(): Customer {
   return {
     id: 'cust-1', phone: PHONE, name: 'Luis', isActive: true,
+    savedAddress: null,
     conversationState: { state: 'BROWSE_CATEGORIES' }, sessionExpiresAt: null,
     createdAt: new Date(), updatedAt: new Date(), deletedAt: null,
   };

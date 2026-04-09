@@ -154,8 +154,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         // ── Notificar al cliente y al admin por WhatsApp ─────────────────
         const customerPhone = order.customer.phone;
         const customerName = order.customer.name ?? customerPhone;
-        const restaurantName = (await getConfig('RESTAURANT_NAME')) ?? 'el restaurante';
-        const adminPhone = await getConfig('ADMIN_PHONE');
+const adminPhone = await getConfig('ADMIN_PHONE');
         const fId = String(order.orderNumber).padStart(4, '0');
 
         // ── WhatsApp notifications (awaited so errors surface in logs) ──
@@ -1195,7 +1194,6 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const discUsd  = delivered.reduce((s, o) => s + Number(o.discountUsd ?? 0), 0);
 
       const prevGrossBs  = prevOrders.reduce((s, o) => s + Number(o.totalBs),  0);
-      const prevGrossUsd = prevOrders.reduce((s, o) => s + Number(o.totalUsd), 0);
 
       const total = delivered.length + cancelled.length;
       const conversionRate = total > 0 ? (delivered.length / total) * 100 : 0;

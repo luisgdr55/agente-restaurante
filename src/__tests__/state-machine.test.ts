@@ -48,6 +48,7 @@ function makeCustomer(overrides: Partial<Customer> = {}): Customer {
     phone: '584141111111',
     name: null,
     isActive: true,
+    savedAddress: null,
     conversationState: { state: 'IDLE' },
     sessionExpiresAt: null,
     createdAt: new Date(),

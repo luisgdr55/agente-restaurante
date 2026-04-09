@@ -6,7 +6,6 @@ import type { MenuItem, MenuCategory } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { redisClient } from '../redis/client';
 import { getExchangeRate, usdToBs, invalidateMenuCache } from './config-service';
-import { logger } from '../utils/logger';
 
 const MENU_CACHE_TTL = 300; // 5 minutos
 const MENU_CACHE_KEY = 'menu:full';

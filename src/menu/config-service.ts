@@ -34,6 +34,7 @@ export interface SystemConfigMap {
   SCHEDULE_OPEN_TIME: string;  // "HH:MM" en hora Venezuela (UTC-4)
   SCHEDULE_CLOSE_TIME: string; // "HH:MM" en hora Venezuela (UTC-4)
   SCHEDULE_DAYS: string;       // JSON array de días activos, ej: "[1,2,3,4,5,6]" (0=Dom, 6=Sáb)
+  PROMO_DAYS: string;
 }
 
 export type ConfigKey = keyof SystemConfigMap;

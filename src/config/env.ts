@@ -55,9 +55,8 @@ const envSchema = z.object({
   // Rate limits
   RATE_LIMIT_PER_PHONE_RPS: z.coerce.number().default(3),
 
-  // WhatsApp App Secret — para verificar firma HMAC-SHA256 del webhook
-  // Obtener en Meta Developer Portal → App → WhatsApp → Configuration → App Secret
-  WHATSAPP_APP_SECRET: z.string().min(1).optional(),
+  // META_LEGACY: WHATSAPP_APP_SECRET: z.string().min(1).optional(),
+  // (firma HMAC-SHA256 de Meta Cloud API — no aplica a Evolution API)
 });
 
 const parsed = envSchema.safeParse(process.env);
