@@ -10,7 +10,7 @@
 - ❌ Evolution API: descartada definitivamente
 
 ## Fase 1 — Backend Push Notifications
-✅ COMPLETADA
+✅ COMPLETADA Y DEPLOYADA
 
 Cambios aplicados:
 - web-push instalado
@@ -21,6 +21,9 @@ Cambios aplicados:
   OUT_FOR_DELIVERY, DELIVERED
 - POST /api/push/subscribe en dashboard.routes.ts
 - Variables VAPID en .env y Railway
+- VAPID_EMAIL fix: z.string().min(1) (acepta formato mailto:)
+- Bot corriendo en Railway sin errores
+- Push notifications backend funcional
 
 ## Fase 2 — PWA Cliente
 ⏳ PENDIENTE — próxima sesión
@@ -54,11 +57,14 @@ Incluye:
 - Archivar archivos WhatsApp legacy
 - Eliminar Evolution API del docker-compose
 
-## Próximo paso
-Iniciar Fase 2 — PWA cliente.
-Requiere material de Yebram's:
+## Próximo paso — Fase 2: PWA Cliente
+Requiere material de Yebram's antes de empezar:
 - Logo PNG
-- Fotos de productos
-- Colores/estilo del restaurante
+- Fotos productos del menú
 - Datos pago móvil
-- Zonas de delivery con precios
+- Zonas delivery con precios
+
+## Al iniciar próxima sesión leer en orden
+1. CLAUDE.md
+2. ESTADO_ACTUAL.md
+3. FEATURES.md
