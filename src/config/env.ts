@@ -50,7 +50,7 @@ const envSchema = z.object({
   // Web Push (VAPID)
   VAPID_PUBLIC_KEY: z.string().min(1),
   VAPID_PRIVATE_KEY: z.string().min(1),
-  VAPID_EMAIL: z.string().email(),
+  VAPID_EMAIL: z.string().min(1),
 
   // BullMQ
   QUEUE_CONCURRENCY: z.coerce.number().default(10),
