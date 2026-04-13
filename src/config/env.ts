@@ -47,6 +47,11 @@ const envSchema = z.object({
   // OCR — opcional
   GOOGLE_VISION_API_KEY: z.string().optional(),
 
+  // Web Push (VAPID)
+  VAPID_PUBLIC_KEY: z.string().min(1),
+  VAPID_PRIVATE_KEY: z.string().min(1),
+  VAPID_EMAIL: z.string().email(),
+
   // BullMQ
   QUEUE_CONCURRENCY: z.coerce.number().default(10),
   QUEUE_MAX_RETRIES: z.coerce.number().default(3),

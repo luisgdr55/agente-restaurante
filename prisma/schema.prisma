@@ -21,6 +21,7 @@ model Customer {
   stats             CustomerStats?
   orders            Order[]
   reviews           Review[]
+  pushSubscriptions PushSubscription[]
 
   @@index([phone])
   @@index([deletedAt])
@@ -234,6 +235,20 @@ model MessageIdempotency {
   processedAt DateTime @default(now())
 
   @@map("message_idempotency")
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid())
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  customerId String?
+  phone      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  @@map("push_subscriptions")
 }
 
 enum OrderStatus {

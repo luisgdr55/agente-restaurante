@@ -42,6 +42,7 @@
     "socket.io": "^4.8.3",
     "tesseract.js": "^5.1.1",
     "uuid": "^10.0.0",
+    "web-push": "^3.6.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -49,6 +50,7 @@
     "@types/node": "^22.7.5",
     "@types/supertest": "^7.2.0",
     "@types/uuid": "^10.0.0",
+    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
     "@typescript-eslint/parser": "^8.8.1",
     "eslint": "^9.12.0",

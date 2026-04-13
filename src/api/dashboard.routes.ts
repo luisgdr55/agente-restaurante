@@ -1481,4 +1481,37 @@ const adminPhone = await getConfig('ADMIN_PHONE');
       return reply.send({ reviews, averageRating: avg, total: reviews.length });
     },
   );
+
+  // ─── Push Subscriptions ───────────────────────────────────────────────────
+
+  app.post<{
+    Body: { endpoint: string; keys: { p256dh: string; auth: string }; phone?: string };
+  }>('/api/push/subscribe', async (req, reply) => {
+    const { endpoint, keys, phone } = req.body;
+
+    let customerId: string | undefined;
+    if (phone) {
+      const customer = await prisma.customer.findUnique({ where: { phone } });
+      if (customer) customerId = customer.id;
+    }
+
+    await prisma.pushSubscription.upsert({
+      where: { endpoint },
+      create: {
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+        ...(phone && { phone }),
+        ...(customerId && { customerId }),
+      },
+      update: {
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+        ...(phone && { phone }),
+        ...(customerId && { customerId }),
+      },
+    });
+
+    return reply.code(201).send({ ok: true });
+  });
 }

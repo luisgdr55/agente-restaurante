@@ -8,6 +8,7 @@ import { getExchangeRate, usdToBs, getConfig } from '../menu/config-service';
 import { logger } from '../utils/logger';
 import type { CartItem } from '../redis/session-manager';
 import { emitOrderNew, emitOrderUpdated, emitStatsUpdated } from '../websocket/socket-server';
+import { sendPushToPhone } from '../notifications/push-service';
 import { redisClient } from '../redis/client';
 import { getSession, updateSessionState } from '../redis/session-manager';
 
@@ -114,6 +115,17 @@ export async function updateOrderStatus(
   logger.info({ orderId, status }, 'Order status updated');
   emitOrderUpdated(order);
   void emitTodayStats(); // non-blocking — actualiza el panel de stats en el dashboard
+
+  // ─── Push notifications al cliente ───────────────────────────────────────
+  const phone = order.customer.phone;
+  if (status === 'PAYMENT_CONFIRMED') {
+    void sendPushToPhone(phone, '✅ Pago confirmado', 'Tu pedido está en cocina 🍳');
+  } else if (status === 'OUT_FOR_DELIVERY') {
+    void sendPushToPhone(phone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
+  } else if (status === 'DELIVERED') {
+    void sendPushToPhone(phone, '🙏 ¿Cómo estuvo?', 'Toca para calificar tu pedido', `/review/${orderId}`);
+  }
+
   return order as unknown as Order;
 }
 
