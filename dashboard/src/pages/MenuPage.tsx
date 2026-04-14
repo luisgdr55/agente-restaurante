@@ -117,13 +117,14 @@ function ItemModal({
   categoryId: string;
   categories: MenuCategoryFull[];
   initial?: MenuItem;
-  onSave: (data: { name: string; description: string; priceUsd: number; isAvailable: boolean }) => Promise<void>;
+  onSave: (data: { name: string; description: string; priceUsd: number; isAvailable: boolean; imageUrl: string | null }) => Promise<void>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [price, setPrice] = useState(initial ? Number(initial.priceUsd).toFixed(2) : '');
   const [available, setAvailable] = useState(initial?.isAvailable ?? true);
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -136,7 +137,7 @@ function ItemModal({
     setSaving(true);
     setError('');
     try {
-      await onSave({ name: name.trim(), description: description.trim(), priceUsd: priceNum, isAvailable: available });
+      await onSave({ name: name.trim(), description: description.trim(), priceUsd: priceNum, isAvailable: available, imageUrl: imageUrl.trim() || null });
       onClose();
     } catch {
       setError('Error al guardar. Intenta de nuevo.');
@@ -178,6 +179,24 @@ function ItemModal({
             onChange={(e) => setPrice(e.target.value)}
             placeholder="0.00"
           />
+        </div>
+
+        <div>
+          <label>URL de imagen (opcional)</label>
+          <input
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://ejemplo.com/imagen.jpg"
+          />
+          {imageUrl.trim() && (
+            <img
+              src={imageUrl.trim()}
+              alt="preview"
+              style={{ marginTop: '0.5rem', maxHeight: 80, borderRadius: 6, objectFit: 'cover' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -440,11 +459,11 @@ export default function MenuPage() {
   };
 
   // Item CRUD
-  const handleSaveItem = async (data: { name: string; description: string; priceUsd: number; isAvailable: boolean }) => {
+  const handleSaveItem = async (data: { name: string; description: string; priceUsd: number; isAvailable: boolean; imageUrl: string | null }) => {
     if (modal.type === 'edit-item') {
       await menuApi.updateItem(modal.item.id, data);
     } else if (modal.type === 'new-item') {
-      await menuApi.createItem({ ...data, categoryId: modal.categoryId });
+      await menuApi.createItem({ ...data, categoryId: modal.categoryId, ...(data.imageUrl && { imageUrl: data.imageUrl }) });
     }
     await load();
   };

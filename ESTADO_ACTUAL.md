@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-13
+Última actualización: 2026-04-14
 
 ## Infraestructura
 - ✅ Bot: https://yebrams.up.railway.app
@@ -25,6 +25,19 @@ Cambios aplicados:
 - Bot corriendo en Railway sin errores
 - Push notifications backend funcional
 
+## Sesión 2026-04-14 — Completado
+- Migración 20260413000001_add_missing_tables aplicada en Railway
+- Seed ejecutado exitosamente: 19 configs, 10 categorías, 62 ítems
+- Dashboard muestra menú correctamente
+- Campo imageUrl agregado en formulario create/edit de MenuPage.tsx
+- Backend POST /api/menu/items acepta imageUrl
+- Columna imageUrl ya existía en menu_items (schema.prisma)
+
+## Decisión pendiente — Almacenamiento de imágenes
+Confirmar al inicio de próxima sesión:
+- **Opción A**: Railway Volume (requiere endpoint upload en backend)
+- **Opción B**: Cloudinary gratuito (más simple, 25GB, sin backend extra)
+
 ## Fase 2 — PWA Cliente
 ⏳ PENDIENTE — próxima sesión
 
@@ -41,6 +54,12 @@ Incluye:
 - Link WhatsApp prellenado al confirmar pedido
 - Saludo personalizado LLM para clientes recurrentes
 
+Requiere antes de empezar:
+- Decisión sobre almacenamiento de imágenes (Opción A o B)
+- Fotos de productos de Yebram's
+- Zonas delivery con precios
+- Número WhatsApp del restaurante
+
 ## Fase 3 — PWA Motorizado
 ⏳ PENDIENTE
 - Página /driver/:orderId
@@ -56,13 +75,6 @@ Incluye:
 ⏳ PENDIENTE
 - Archivar archivos WhatsApp legacy
 - Eliminar Evolution API del docker-compose
-
-## Próximo paso — Fase 2: PWA Cliente
-Requiere material de Yebram's antes de empezar:
-- Logo PNG
-- Fotos productos del menú
-- Datos pago móvil
-- Zonas delivery con precios
 
 ## Al iniciar próxima sesión leer en orden
 1. CLAUDE.md

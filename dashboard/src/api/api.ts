@@ -152,9 +152,9 @@ export const menuApi = {
   deleteCategory: (id: string) => api.delete(`/menu/categories/${id}`),
 
   // Items
-  createItem: (data: { categoryId: string; name: string; description?: string; priceUsd: number; isAvailable?: boolean }) =>
+  createItem: (data: { categoryId: string; name: string; description?: string; priceUsd: number; isAvailable?: boolean; imageUrl?: string }) =>
     api.post<MenuItem>('/menu/items', data).then(r => r.data),
-  updateItem: (id: string, data: Partial<{ name: string; description: string; priceUsd: number; isAvailable: boolean }>) =>
+  updateItem: (id: string, data: Partial<{ name: string; description: string; priceUsd: number; isAvailable: boolean; imageUrl: string | null }>) =>
     api.patch<MenuItem>(`/menu/items/${id}`, data).then(r => r.data),
   deleteItem: (id: string) => api.delete(`/menu/items/${id}`),
 };

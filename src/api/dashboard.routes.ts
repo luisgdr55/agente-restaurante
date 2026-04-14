@@ -630,14 +630,14 @@ const adminPhone = await getConfig('ADMIN_PHONE');
   );
 
   // POST /api/menu/items — create item
-  app.post<{ Body: { categoryId: string; name: string; description?: string; priceUsd: number; isAvailable?: boolean } }>(
+  app.post<{ Body: { categoryId: string; name: string; description?: string; priceUsd: number; isAvailable?: boolean; imageUrl?: string } }>(
     '/api/menu/items',
     { preHandler: verifyJwt },
     async (req, reply) => {
-      const { categoryId, name, description, priceUsd, isAvailable = true } = req.body;
+      const { categoryId, name, description, priceUsd, isAvailable = true, imageUrl } = req.body;
       const count = await prisma.menuItem.count({ where: { categoryId, deletedAt: null } });
       const item = await prisma.menuItem.create({
-        data: { categoryId, name, description: description ?? null, priceUsd, isAvailable, sortOrder: count },
+        data: { categoryId, name, description: description ?? null, priceUsd, isAvailable, sortOrder: count, ...(imageUrl && { imageUrl }) },
       });
       await invalidateMenuCache(categoryId);
       return reply.code(201).send(item);
