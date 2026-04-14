@@ -463,7 +463,7 @@ export default function MenuPage() {
     if (modal.type === 'edit-item') {
       await menuApi.updateItem(modal.item.id, data);
     } else if (modal.type === 'new-item') {
-      await menuApi.createItem({ ...data, categoryId: modal.categoryId, ...(data.imageUrl && { imageUrl: data.imageUrl }) });
+      await menuApi.createItem({ ...data, categoryId: modal.categoryId, imageUrl: data.imageUrl || undefined });
     }
     await load();
   };
