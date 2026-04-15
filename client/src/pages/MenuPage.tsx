@@ -7,7 +7,7 @@ import CartDrawer from '../components/CartDrawer'
 import ItemDetailSheet from '../components/ItemDetailSheet'
 import type { MenuItem } from '../api/api'
 
-const HERO_BG = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/layebrams.jpg'
+const HERO_BG = 'https://raw.githubusercontent.com/luisgdr55/agente-restaurante/master/public/menu-images/layebrams.jpg'
 
 function ItemPlaceholder() {
   return (

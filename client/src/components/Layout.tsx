@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const LOGO = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/heropwa.png'
+const LOGO = 'https://raw.githubusercontent.com/luisgdr55/agente-restaurante/master/public/menu-images/heropwa.png'
 
 interface LayoutProps {
   children: React.ReactNode
