@@ -1831,6 +1831,110 @@ const adminPhone = await getConfig('ADMIN_PHONE');
     },
   );
 
+  // GET /api/public/orders/:id/tracking — datos completos para tracking page (sin auth)
+  app.get<{ Params: { id: string } }>(
+    '/api/public/orders/:id/tracking',
+    async (req, reply) => {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          deliveryType: true,
+          deliveryAddress: true,
+          totalUsd: true,
+          totalBs: true,
+          customer: { select: { name: true } },
+          items: {
+            select: {
+              quantity: true,
+              unitPriceUsd: true,
+              menuItem: { select: { name: true } },
+            },
+          },
+        },
+      });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      return reply.send({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryType: order.deliveryType,
+        deliveryAddress: order.deliveryAddress,
+        totalUsd: order.totalUsd.toString(),
+        totalBs: order.totalBs.toString(),
+        customerName: order.customer.name,
+        items: order.items.map((i) => ({
+          name: i.menuItem.name,
+          quantity: i.quantity,
+          unitPriceUsd: i.unitPriceUsd.toString(),
+        })),
+      });
+    },
+  );
+
+  // PATCH /api/public/orders/:id/payment-proof — cliente sube nuevo comprobante (sin auth)
+  app.patch<{
+    Params: { id: string };
+    Body: { paymentImageUrl: string };
+  }>(
+    '/api/public/orders/:id/payment-proof',
+    async (req, reply) => {
+      const { id } = req.params;
+      const { paymentImageUrl } = req.body;
+      if (!paymentImageUrl?.trim()) {
+        return reply.code(400).send({ error: 'paymentImageUrl is required' });
+      }
+      const order = await prisma.order.findUnique({ where: { id }, select: { id: true, status: true, customer: true } });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      if (!['PAYMENT_REJECTED', 'PENDING_PAYMENT'].includes(order.status)) {
+        return reply.code(409).send({ error: 'Solo se puede subir comprobante cuando el pago fue rechazado o está pendiente' });
+      }
+      const updated = await prisma.order.update({
+        where: { id },
+        data: { paymentImageUrl, status: 'PAYMENT_UPLOADED' },
+        include: { customer: true, items: { include: { menuItem: true } } },
+      });
+      emitOrderUpdated(updated);
+      // Push al admin si tiene suscripción
+      const adminPhone = await getConfig('ADMIN_PHONE');
+      if (adminPhone) {
+        const fId = String(updated.orderNumber).padStart(4, '0');
+        void sendPushToPhone(adminPhone, '📤 Nuevo comprobante', `Pedido #${fId} — comprobante actualizado`, `/`);
+      }
+      return reply.send({ ok: true });
+    },
+  );
+
+  // DELETE /api/public/orders/:id — cliente cancela pedido (sin auth, solo estados permitidos)
+  app.delete<{ Params: { id: string } }>(
+    '/api/public/orders/:id',
+    async (req, reply) => {
+      const { id } = req.params;
+      const order = await prisma.order.findUnique({
+        where: { id },
+        select: { id: true, status: true, orderNumber: true, customer: true },
+      });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      if (!['PAYMENT_REJECTED', 'PENDING_PAYMENT', 'PAYMENT_UPLOADED'].includes(order.status)) {
+        return reply.code(409).send({ error: 'No se puede cancelar un pedido en este estado' });
+      }
+      const updated = await prisma.order.update({
+        where: { id },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'Cancelado por el cliente' },
+        include: { customer: true, items: { include: { menuItem: true } } },
+      });
+      emitOrderUpdated(updated);
+      const adminPhone = await getConfig('ADMIN_PHONE');
+      if (adminPhone) {
+        const fId = String(order.orderNumber).padStart(4, '0');
+        void sendPushToPhone(adminPhone, '❌ Pedido cancelado', `Pedido #${fId} cancelado por el cliente`);
+      }
+      return reply.send({ ok: true });
+    },
+  );
+
   // POST /api/public/reviews/:orderId — cliente envía reseña desde PWA (sin auth)
   app.post<{
     Params: { orderId: string };
