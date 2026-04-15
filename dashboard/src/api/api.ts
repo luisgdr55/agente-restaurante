@@ -71,6 +71,8 @@ export const ordersApi = {
     api.patch<Order>(`/orders/${id}/status`, { status, ...(reason && { reason }) }).then(r => r.data),
   assignDriver: (orderId: string, driverId: string) =>
     api.post<Order>(`/orders/${orderId}/assign-driver`, { driverId }).then(r => r.data),
+  setOutForDelivery: (id: string) =>
+    api.patch<Order>(`/orders/${id}/status`, { status: 'OUT_FOR_DELIVERY' }).then(r => r.data),
 };
 
 export const driversApi = {

@@ -38,7 +38,8 @@ async function aggregateOrders(from: Date, to?: Date) {
     },
   });
 
-  const delivered  = orders.filter((o) => o.status === 'DELIVERED');
+  // "delivered" = completedAt set (cocina marcó listo); DELIVERED solo archiva
+  const delivered  = orders.filter((o) => o.completedAt != null);
   const cancelled  = orders.filter((o) => o.status === 'CANCELLED');
 
   const grossBs  = delivered.reduce((s, o) => s + Number(o.totalBs),  0);

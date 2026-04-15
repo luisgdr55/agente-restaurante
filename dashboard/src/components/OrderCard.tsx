@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Order, Driver } from '../api/api';
 import { ordersApi, driversApi } from '../api/api';
+
+const PWA_URL = import.meta.env.VITE_PWA_URL ?? 'https://yebramspedidos.up.railway.app';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT:            '⏳ Pend. pago',
@@ -50,6 +53,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
   const [adHocMode, setAdHocMode] = useState(false);
   const [adHocName, setAdHocName] = useState('');
   const [adHocPhone, setAdHocPhone] = useState('');
+  const [qrOpen, setQrOpen] = useState(false);
+  const [sendingOut, setSendingOut] = useState(false);
 
   useEffect(() => {
     if (order.status === 'AWAITING_DRIVER_ASSIGNMENT') {
@@ -104,7 +109,19 @@ export default function OrderCard({ order, onRefresh }: Props) {
     }
   };
 
+  const doSendOutForDelivery = async () => {
+    setSendingOut(true);
+    try {
+      await ordersApi.setOutForDelivery(order.id);
+      setQrOpen(true);
+      onRefresh();
+    } finally {
+      setSendingOut(false);
+    }
+  };
+
   const isDone = TERMINAL.includes(order.status);
+  const driverQrUrl = `${PWA_URL}/driver/${order.id}`;
 
   return (
     <div className="card" style={{ borderTop: `3px solid ${borderColor}`, opacity: isDone ? 0.75 : 1 }}>
@@ -259,10 +276,24 @@ export default function OrderCard({ order, onRefresh }: Props) {
             </div>
           )}
 
-          {order.status === 'READY' && (
+          {order.status === 'READY' && order.deliveryType === 'DELIVERY' && (
+            <button className="btn btn-sm btn-primary" disabled={sendingOut}
+              onClick={() => void doSendOutForDelivery()}>
+              {sendingOut ? 'Procesando...' : '🛵 Salió a domicilio'}
+            </button>
+          )}
+
+          {order.status === 'READY' && order.deliveryType !== 'DELIVERY' && (
             <button className="btn btn-sm btn-success" disabled={loading}
               onClick={() => doAction('DELIVERED')}>
-              {order.deliveryType === 'DELIVERY' ? '🛵 Marcar entregado' : '✅ Cliente retiró'}
+              ✅ Cliente retiró
+            </button>
+          )}
+
+          {order.status === 'OUT_FOR_DELIVERY' && (
+            <button className="btn btn-sm btn-ghost" style={{ fontSize: '0.78rem' }}
+              onClick={() => setQrOpen(true)}>
+              📱 Ver QR motorizado
             </button>
           )}
 
@@ -274,6 +305,40 @@ export default function OrderCard({ order, onRefresh }: Props) {
               Cancelar pedido
             </button>
           )}
+        </div>
+      )}
+
+      {/* Modal QR motorizado */}
+      {qrOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '1rem',
+        }} onClick={() => setQrOpen(false)}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: '16px', padding: '1.5rem',
+            maxWidth: 320, width: '100%', textAlign: 'center',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.25rem' }}>
+              📱 QR Motorizado
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text2)', marginBottom: '1rem' }}>
+              Pedido #{orderNum} · {order.customer.name ?? order.customer.phone}
+            </div>
+            <div style={{
+              background: '#fff', padding: '1rem', borderRadius: '12px',
+              display: 'inline-block', marginBottom: '1rem',
+            }}>
+              <QRCodeSVG value={driverQrUrl} size={200} />
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginBottom: '1rem', wordBreak: 'break-all' }}>
+              {driverQrUrl}
+            </div>
+            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }}
+              onClick={() => setQrOpen(false)}>
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
 

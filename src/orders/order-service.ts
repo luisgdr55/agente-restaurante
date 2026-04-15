@@ -104,6 +104,7 @@ export async function updateOrderStatus(
   if (extra?.paymentReference !== undefined) data.paymentReference = extra.paymentReference;
   if (extra?.paymentImageUrl !== undefined) data.paymentImageUrl = extra.paymentImageUrl;
   if (extra?.deliveredAt !== undefined) data.deliveredAt = extra.deliveredAt;
+  if (status === 'READY') data.completedAt = new Date(); // cierre de métricas en cocina
   if (status === 'CANCELLED') data.cancelledAt = new Date();
   if (extra?.cancelReason !== undefined) data.cancelReason = extra.cancelReason;
 
@@ -120,10 +121,12 @@ export async function updateOrderStatus(
   const phone = order.customer.phone;
   if (status === 'PAYMENT_CONFIRMED') {
     void sendPushToPhone(phone, '✅ Pago confirmado', 'Tu pedido está en cocina 🍳');
+  } else if (status === 'READY') {
+    void sendPushToPhone(phone, '🍗 Pedido listo', 'Tu pedido está listo y sale en camino pronto');
   } else if (status === 'OUT_FOR_DELIVERY') {
     void sendPushToPhone(phone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
   } else if (status === 'DELIVERED') {
-    void sendPushToPhone(phone, '🙏 ¿Cómo estuvo?', 'Toca para calificar tu pedido', `/review/${orderId}`);
+    void sendPushToPhone(phone, '✅ Entregado', '¡Tu pedido llegó! Gracias por preferirnos 🙏', `/review/${orderId}`);
   }
 
   return order as unknown as Order;
@@ -138,13 +141,14 @@ export async function emitTodayStats(): Promise<void> {
 
     const [total, delivered, cancelled, inProgress, revenue, rateConfig] = await Promise.all([
       prisma.order.count({ where: { createdAt: { gte: today } } }),
-      prisma.order.count({ where: { createdAt: { gte: today }, status: 'DELIVERED' } }),
+      // "delivered" = completedAt set (cocina marcó listo) — DELIVERED solo archiva
+      prisma.order.count({ where: { createdAt: { gte: today }, completedAt: { not: null } } }),
       prisma.order.count({ where: { createdAt: { gte: today }, status: 'CANCELLED' } }),
       prisma.order.count({
         where: { createdAt: { gte: today }, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
       }),
       prisma.order.aggregate({
-        where: { createdAt: { gte: today }, status: { in: ['DELIVERED', 'PAYMENT_CONFIRMED'] } },
+        where: { createdAt: { gte: today }, completedAt: { not: null } },
         _sum: { totalBs: true },
       }),
       prisma.systemConfig.findUnique({ where: { key: 'USD_TO_BS_RATE' } }),

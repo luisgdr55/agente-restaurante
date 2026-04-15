@@ -82,13 +82,29 @@
 - Push notification al cliente apunta a /review/:orderId tras entrega confirmada
 
 ## Fase 5 — Limpieza
-⏳ PENDIENTE
-- Archivar archivos WhatsApp legacy
-- Eliminar Evolution API del docker-compose
+✅ COMPLETADA (2026-04-15)
+- Evolution API eliminada de docker-compose.yml (servicio + volumen evolution_instances)
+- evolution_db eliminado de scripts/init-db.sql
+- src/agent/ conservado: importado activamente por dashboard.routes.ts (order-delivered.helper) y
+  whatsapp/client.ts + message-builder.ts (tipos). No se puede mover sin romper imports.
+  El código del agente conversacional sigue compilado pero no recibe tráfico (sin webhook activo).
+
+## Sesión 2026-04-15 — Completado (Fases 3-5)
+
+### Fase 3 pendientes — todos implementados
+1. ✅ completedAt en métricas al marcar READY: prisma schema + updateOrderStatus + emitTodayStats
+2. ✅ QR en dashboard al tocar "Salió a domicilio": QRCodeSVG + qrcode.react + modal
+3. ✅ Push notifications: PAYMENT_CONFIRMED, READY, OUT_FOR_DELIVERY, DELIVERED desde dashboard
+   También en assign-driver (cuando motorizado es asignado → OUT_FOR_DELIVERY)
+4. ✅ Botón "Salió a domicilio" para READY+DELIVERY, "Cliente retiró" para READY+PICKUP
+5. ✅ DELIVERED desde dashboard: sendPushToPhone antes de sendDeliveryNotifications
+
+### Fase 4 — Reseñas desde PWA
+- ReviewPage.tsx: estrellas 5 animadas con color/glow por rating, textarea comentario, dark UI
+- Backend: POST /api/public/reviews/:orderId sin auth
 
 ## Al iniciar próxima sesión leer en orden
 1. CLAUDE.md
 2. ESTADO_ACTUAL.md
-3. FEATURES.md
 
-Próxima tarea: Fase 5 (limpieza) o nuevas features según Yebram's.
+Sistema listo para uso. Próximas mejoras según feedback de Yebram's.

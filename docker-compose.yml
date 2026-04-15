@@ -90,32 +90,6 @@ services:
     networks:
       - restaurant_net
 
-  # ── Evolution API ────────────────────────────────────────────────────────────
-  evolution-api:
-    image: evoapicloud/evolution-api:latest
-    container_name: restaurant_evolution
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      SERVER_URL: http://evolution-api:8080
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
-      DATABASE_ENABLED: "true"
-      DATABASE_CONNECTION_URI: postgresql://restaurant_user:${POSTGRES_PASSWORD:-strong_password}@postgres:5432/evolution_db
-      DATABASE_CONNECTION_CLIENT_NAME: evolution
-      CACHE_REDIS_ENABLED: "true"
-      CACHE_REDIS_URI: ${REDIS_URL}
-      CACHE_REDIS_PREFIX_KEY: evolution
-      DEL_INSTANCE: "false"
-      LANGUAGE: es
-    volumes:
-      - evolution_instances:/evolution/instances
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - restaurant_net
-
   # ── Nginx Reverse Proxy ───────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
@@ -141,8 +115,6 @@ volumes:
   redis_data:
     driver: local
   nginx_logs:
-    driver: local
-  evolution_instances:
     driver: local
 
 networks:

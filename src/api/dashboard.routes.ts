@@ -161,6 +161,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               const etaMinutes = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
               await whatsappClient.sendMessage(TEMPLATES.paymentConfirmed(customerPhone, cartSummary));
               await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaMinutes));
+              void sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 🍳');
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pago confirmado\n*#${fId}* · ${customerName}\nPedido en cocina 🍳`));
               break;
@@ -181,6 +182,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               if (order.deliveryType === 'DELIVERY') {
                 // DELIVERY → notificar al cliente que está listo y va en camino pronto
                 await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'DELIVERY'));
+                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Tu pedido está listo, sale en camino pronto 🛵');
                 if (adminPhone) await whatsappClient.sendMessage(
                   textMessage(
                     adminPhone,
@@ -192,6 +194,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
                 await whatsappClient.sendMessage(
                   TEMPLATES.orderReady(customerPhone, 'PICKUP'),
                 );
+                void sendPushToPhone(customerPhone, '🎉 Pedido listo', 'Ya puedes pasar a buscarlo 🏃');
                 if (adminPhone) await whatsappClient.sendMessage(
                   buttonMessage(
                     adminPhone,
@@ -201,7 +204,13 @@ const adminPhone = await getConfig('ADMIN_PHONE');
                 );
               }
               break;
+            case 'OUT_FOR_DELIVERY':
+              void sendPushToPhone(customerPhone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
+              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
+                `🛵 *Dashboard* — Salió a domicilio\n*#${fId}* · ${customerName}`));
+              break;
             case 'DELIVERED':
+              void sendPushToPhone(customerPhone, '✅ Entregado', '¡Tu pedido llegó! ¿Cómo estuvo? 🙏', `/review/${order.id}`);
               await sendDeliveryNotifications(customerPhone, order.id);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pedido entregado\n*#${fId}* · ${customerName}`));
@@ -370,7 +379,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
         const { assignDriver } = await import('../orders/order-service');
         const result = await assignDriver(orderId, driverId);
 
-        // Mensaje A — al cliente
+        // Mensaje A — al cliente (WhatsApp + push)
         await whatsappClient.sendMessage(
           TEMPLATES.orderOutForDelivery(
             result.customerPhone,
@@ -379,6 +388,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
             result.deliveryAddress,
           ),
         );
+        void sendPushToPhone(result.customerPhone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
 
         // Mensaje B — al motorizado
         const refLine = result.deliveryReference

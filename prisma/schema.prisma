@@ -102,6 +102,7 @@ model Order {
   promotionId       String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  completedAt       DateTime?
   deliveredAt       DateTime?
   cancelledAt       DateTime?
   cancelReason      String?
