@@ -99,4 +99,6 @@ export const publicApi = {
   getConfig: () => api.get<PublicConfig>('/config').then((r) => r.data),
   createOrder: (body: WebOrderBody) =>
     api.post<WebOrderResponse>('/orders', body).then((r) => r.data),
+  getSavedAddress: (phone: string) =>
+    api.get<{ savedAddress: string | null }>(`/customers/${encodeURIComponent(phone)}`).then((r) => r.data.savedAddress),
 }

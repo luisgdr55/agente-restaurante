@@ -4,6 +4,14 @@ import { publicApi, type PublicConfig } from '../api/api'
 import type { CartItem } from '../store/cart'
 import Layout from '../components/Layout'
 
+// Normalize Venezuelan phone to international format for the API lookup
+function normalizePhoneForLookup(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('04') && digits.length === 11) return '58' + digits.slice(1)
+  if (digits.startsWith('584') && digits.length === 12) return digits
+  return digits
+}
+
 function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
@@ -38,6 +46,8 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState('')
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
   const [address, setAddress] = useState('')
+  const [savedAddr, setSavedAddr] = useState<string | null>(null)
+  const [useSaved, setUseSaved] = useState(false)
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -48,6 +58,30 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (cart.length === 0) navigate('/', { replace: true })
   }, [cart, navigate])
+
+  // Fetch saved address when phone is filled (debounced 600ms)
+  useEffect(() => {
+    const digits = phone.replace(/\D/g, '')
+    if (digits.length < 10) {
+      setSavedAddr(null)
+      setUseSaved(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      const normalized = normalizePhoneForLookup(phone)
+      publicApi.getSavedAddress(normalized)
+        .then((addr) => {
+          setSavedAddr(addr)
+          if (addr && !address) {
+            setAddress(addr)
+            setUseSaved(true)
+          }
+        })
+        .catch(() => { /* non-critical */ })
+    }, 600)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone])
 
   const subtotal = cart.reduce((s, i) => s + i.priceUsd * i.quantity, 0)
   const fee = deliveryType === 'DELIVERY' ? deliveryFeeUsd : 0
@@ -186,18 +220,65 @@ export default function CheckoutPage() {
           {deliveryType === 'DELIVERY' && (
             <div>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>Dirección de entrega *</label>
-              <textarea
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Calle, sector, referencia..."
-                rows={3}
-                style={{
-                  width: '100%', background: 'var(--surface)',
-                  border: '1px solid #3A3A3A', borderRadius: 8,
-                  padding: '0.6rem 0.85rem', color: 'var(--text)',
-                  fontSize: '1rem', resize: 'vertical', outline: 'none',
-                }}
-              />
+
+              {/* Saved address card */}
+              {savedAddr && (
+                <div style={{
+                  background: 'rgba(245,197,24,0.06)',
+                  border: '1px solid rgba(245,197,24,0.2)',
+                  borderRadius: 10, padding: '0.75rem 1rem',
+                  marginBottom: '0.6rem',
+                }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                    📍 Dirección anterior
+                  </p>
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text)', marginBottom: '0.6rem', lineHeight: 1.4 }}>
+                    {savedAddr}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => { setAddress(savedAddr); setUseSaved(true) }}
+                      style={{
+                        flex: 1, padding: '0.4rem 0',
+                        borderRadius: 8, fontWeight: 700, fontSize: '0.8rem',
+                        background: useSaved ? 'var(--accent)' : 'rgba(245,197,24,0.12)',
+                        color: useSaved ? '#000' : 'var(--accent)',
+                        border: useSaved ? 'none' : '1px solid rgba(245,197,24,0.3)',
+                      }}
+                    >
+                      {useSaved ? '✓ Usando esta' : 'Usar esta'}
+                    </button>
+                    <button
+                      onClick={() => { setAddress(''); setUseSaved(false) }}
+                      style={{
+                        flex: 1, padding: '0.4rem 0',
+                        borderRadius: 8, fontWeight: 600, fontSize: '0.8rem',
+                        background: !useSaved ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        color: !useSaved ? 'var(--text)' : 'var(--text-muted)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      Ingresar otra
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual address textarea — shown when no savedAddr or user chose "Ingresar otra" */}
+              {(!savedAddr || !useSaved) && (
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Calle, sector, referencia..."
+                  rows={3}
+                  style={{
+                    width: '100%', background: 'var(--surface)',
+                    border: '1px solid #3A3A3A', borderRadius: 8,
+                    padding: '0.6rem 0.85rem', color: 'var(--text)',
+                    fontSize: '1rem', resize: 'vertical', outline: 'none',
+                  }}
+                />
+              )}
             </div>
           )}
         </section>
@@ -237,7 +318,6 @@ export default function CheckoutPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />

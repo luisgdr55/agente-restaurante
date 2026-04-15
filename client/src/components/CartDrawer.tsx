@@ -7,6 +7,7 @@ interface CartDrawerProps {
   rate: number
   onAdd: (item: Omit<CartItem, 'quantity'>) => void
   onRemove: (id: string) => void
+  onClear: () => void
   onClose: () => void
   onCheckout: () => void
 }
@@ -15,7 +16,7 @@ function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, onRemove, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
   const grandTotal = total + deliveryFeeUsd
 
   return (
@@ -62,14 +63,37 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
               </p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: '#2A2A2A', color: 'var(--text-muted)',
-              fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {items.length > 0 && (
+              <button
+                onClick={() => {
+                  if (window.confirm('¿Vaciar el carrito?')) {
+                    onClear()
+                    onClose()
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.25rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: 20,
+                  background: 'rgba(255,68,68,0.1)',
+                  border: '1px solid rgba(255,68,68,0.25)',
+                  color: '#FF4444',
+                  fontSize: '0.75rem', fontWeight: 600,
+                }}
+              >
+                🗑️ Vaciar
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: '#2A2A2A', color: 'var(--text-muted)',
+                fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >×</button>
+          </div>
         </div>
 
         {/* Items */}

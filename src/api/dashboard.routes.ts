@@ -1644,8 +1644,29 @@ const adminPhone = await getConfig('ADMIN_PHONE');
     });
     emitOrderUpdated(full ?? order);
 
+    // Save delivery address for next time
+    if (deliveryType === 'DELIVERY' && address?.trim()) {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { savedAddress: address.trim() },
+      }).catch(() => { /* non-critical */ });
+    }
+
     return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
   });
+
+  // GET /api/public/customers/:phone — saved address lookup (no auth)
+  app.get<{ Params: { phone: string } }>(
+    '/api/public/customers/:phone',
+    async (req, reply) => {
+      const normalized = normalizeDriverPhone(req.params.phone.trim());
+      const customer = await prisma.customer.findUnique({
+        where: { phone: normalized },
+        select: { savedAddress: true },
+      });
+      return reply.send({ savedAddress: customer?.savedAddress ?? null });
+    }
+  );
 
   // ─── Endpoints públicos para PWA motorizado (sin auth) ─────────────────────
 

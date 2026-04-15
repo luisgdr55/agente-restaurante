@@ -33,7 +33,7 @@ export default function MenuPage() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [touchedCard, setTouchedCard] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { items, add, remove, total, count } = useCart()
+  const { items, add, remove, clear, total, count } = useCart()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -483,6 +483,7 @@ export default function MenuPage() {
           rate={rate}
           onAdd={add}
           onRemove={remove}
+          onClear={clear}
           onClose={() => setCartOpen(false)}
           onCheckout={handleCheckout}
         />
