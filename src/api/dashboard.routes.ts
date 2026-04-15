@@ -1515,4 +1515,131 @@ const adminPhone = await getConfig('ADMIN_PHONE');
 
     return reply.code(201).send({ ok: true });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PUBLIC endpoints — no auth required (used by client PWA)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // GET /api/public/menu — active categories + available items with imageUrl
+  app.get('/api/public/menu', async (_req, reply) => {
+    const categories = await prisma.menuCategory.findMany({
+      where: { isActive: true },
+      include: {
+        items: {
+          where: { deletedAt: null, isAvailable: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+    reply.header('Cache-Control', 'public, max-age=60');
+    return categories;
+  });
+
+  // GET /api/public/config — restaurant info for client PWA
+  app.get('/api/public/config', async (_req, _reply) => {
+    const keys = [
+      'RESTAURANT_NAME',
+      'PAGO_MOVIL_PHONE',
+      'PAGO_MOVIL_BANK',
+      'PAGO_MOVIL_HOLDER',
+      'PAGO_MOVIL_RIF',
+      'DELIVERY_FEE_USD',
+      'USD_TO_BS_RATE',
+      'ADMIN_PHONE',
+      'RESTAURANT_HOURS',
+      'BUSINESS_ACTIVE',
+      'SCHEDULE_ENABLED',
+      'SCHEDULE_OPEN_TIME',
+      'SCHEDULE_CLOSE_TIME',
+      'SCHEDULE_DAYS',
+    ];
+    const rows = await prisma.systemConfig.findMany({ where: { key: { in: keys } } });
+    const config = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return { ...config, vapidPublicKey: env.VAPID_PUBLIC_KEY };
+  });
+
+  // POST /api/public/orders — create order from client PWA (no auth)
+  app.post<{
+    Body: {
+      customerName: string;
+      phone: string;
+      deliveryType: 'DELIVERY' | 'PICKUP';
+      address?: string;
+      items: { menuItemId: string; quantity: number }[];
+      proofImageBase64?: string;
+    };
+  }>('/api/public/orders', async (req, reply) => {
+    const { customerName, phone, deliveryType, address, items, proofImageBase64 } = req.body;
+
+    if (!customerName?.trim()) return reply.code(400).send({ error: 'customerName is required' });
+    if (!phone?.trim()) return reply.code(400).send({ error: 'phone is required' });
+    if (!items?.length) return reply.code(400).send({ error: 'items is required' });
+    if (deliveryType === 'DELIVERY' && !address?.trim()) {
+      return reply.code(400).send({ error: 'address is required for delivery' });
+    }
+
+    const normalizedPhone = normalizeDriverPhone(phone.trim());
+
+    // findOrCreate customer
+    let customer = await prisma.customer.findUnique({ where: { phone: normalizedPhone } });
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          phone: normalizedPhone,
+          name: customerName.trim(),
+          conversationState: { state: 'IDLE' },
+          stats: { create: {} },
+        },
+      });
+    } else if (!customer.name && customerName.trim()) {
+      customer = await prisma.customer.update({
+        where: { id: customer.id },
+        data: { name: customerName.trim() },
+      });
+    }
+
+    // Load prices from DB
+    const menuItems = await prisma.menuItem.findMany({
+      where: { id: { in: items.map((i) => i.menuItemId) }, deletedAt: null },
+    });
+    if (menuItems.length !== items.length) {
+      return reply.code(400).send({ error: 'One or more menu items not found' });
+    }
+
+    const cart = items.map((i) => {
+      const mi = menuItems.find((m) => m.id === i.menuItemId)!;
+      return {
+        menuItemId: i.menuItemId,
+        name: mi.name,
+        quantity: i.quantity,
+        unitPriceUsd: parseFloat(mi.priceUsd.toString()),
+      };
+    });
+
+    const deliveryFeeUsd = deliveryType === 'DELIVERY'
+      ? parseFloat((await getConfig('DELIVERY_FEE_USD')) ?? '1.50')
+      : 0;
+
+    const order = await createOrder({
+      customerId: customer.id,
+      cart,
+      deliveryType,
+      ...(address ? { deliveryAddress: address.trim() } : {}),
+      paymentMethod: 'PAGO_MOVIL',
+      deliveryFeeUsd,
+      ...(proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
+    });
+
+    const targetStatus = proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
+    await updateOrderStatus(order.id, targetStatus);
+
+    const full = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { customer: true, items: { include: { menuItem: true } } },
+    });
+    emitOrderUpdated(full ?? order);
+
+    return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
+  });
 }

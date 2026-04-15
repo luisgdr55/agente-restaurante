@@ -40,6 +40,17 @@ Cambios aplicados:
 - GitHub + jsDelivr como CDN ✅
 - Log debug PATCH eliminado ✅
 
+## Sesión 2026-04-15 parte 2 — Completado
+- PASO 1 ✅ client/ creado con Vite React TS
+- PASO 2 ✅ Rutas en App.tsx (/, /checkout, /confirm, /review/:id, /driver/:id)
+- PASO 3 ✅ GET /api/public/menu y GET /api/public/config (sin auth)
+- PASO 4 ✅ manifest.json + sw.js + index.html PWA
+- PASO 5 ✅ Primera parte:
+  - useCart() hook con localStorage
+  - Layout.tsx con header sticky + botón carrito
+  - CartDrawer.tsx con totales USD + Bs
+  - MenuPage.tsx completo: hero, tabs categorías, grid cards, placeholder 🍽️
+
 ## Decisión tomada — Almacenamiento de imágenes
 GitHub + jsDelivr CDN (gratuito, sin backend extra)
 
@@ -54,28 +65,21 @@ Los productos sin imageUrl mostrarán placeholder elegante:
 - Paleta: negro #1A1A1A + dorado #D4A017
 
 ## Fase 2 — PWA Cliente
-⏳ PENDIENTE — próxima sesión
+🔄 EN PROGRESO
 
-Material disponible para arrancar:
-- Hero: heropwa.png ✅
-- Logo: visible en heropwa.png ✅
-- Paleta: negro #1A1A1A + dorado #D4A017 ✅
-- 5 fotos de productos ✅
-- Menú completo en BD (62 ítems) ✅
-- Datos pago móvil en BD ✅
+Completado:
+- ✅ Proyecto client/ Vite React TS
+- ✅ Rutas (/, /checkout, /confirm, /review/:id, /driver/:id)
+- ✅ Endpoints públicos backend (/api/public/menu, /api/public/config)
+- ✅ PWA manifest + Service Worker
+- ✅ useCart hook + Layout + CartDrawer + MenuPage
 
-Incluye:
-- manifest.json (instalable en homescreen)
-- Service Worker con cache offline
-- Menú visual con fotos y categorías
-- Carrito con +/-
-- Selector zona delivery con precios
-- Formulario checkout (nombre, teléfono, dirección)
-- Modal primera visita: explicar notificaciones
-- Suscripción push al aceptar notificaciones
-- Upload comprobante de pago
-- Link WhatsApp prellenado al confirmar pedido
-- Saludo personalizado LLM para clientes recurrentes
+Próximo paso — PASO 5 continuación:
+- CheckoutPage.tsx: nombre, teléfono, dirección, toggle Delivery/Pickup,
+  datos pago móvil, upload comprobante, POST /api/orders/web
+- ConfirmPage.tsx con link WhatsApp prellenado
+- Modal primera visita + suscripción push
+- Deploy client/ en Railway
 
 ## Fase 3 — PWA Motorizado
 ⏳ PENDIENTE
