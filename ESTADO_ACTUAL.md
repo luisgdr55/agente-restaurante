@@ -1,9 +1,10 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-14
+Última actualización: 2026-04-15
 
 ## Infraestructura
 - ✅ Bot: https://yebrams.up.railway.app
 - ✅ Dashboard: https://yebrams-dashboard.up.railway.app
+- ✅ PWA Cliente: https://yebramspedidos.up.railway.app
 - ✅ Login dashboard funcionando
 - ✅ BD PostgreSQL con migraciones aplicadas
 - ✅ Todos los workers activos
@@ -12,74 +13,61 @@
 ## Fase 1 — Backend Push Notifications
 ✅ COMPLETADA Y DEPLOYADA
 
-Cambios aplicados:
-- web-push instalado
-- VAPID keys generadas
-- PushSubscription model en Prisma + migración
-- push-service.ts: sendPushToPhone()
-- order-service.ts: push en PAYMENT_CONFIRMED,
-  OUT_FOR_DELIVERY, DELIVERED
-- POST /api/push/subscribe en dashboard.routes.ts
-- Variables VAPID en .env y Railway
-- VAPID_EMAIL fix: z.string().min(1) (acepta formato mailto:)
-- Bot corriendo en Railway sin errores
-- Push notifications backend funcional
+## Fase 2 — PWA Cliente
+✅ COMPLETADA Y DEPLOYADA en https://yebramspedidos.up.railway.app
+
+### Infraestructura client/
+- ✅ Proyecto client/ Vite React TS + Dockerfile + nginx
+- ✅ Deploy Railway: Root Directory = client/, Builder = Dockerfile
+- ✅ nginx.conf con `listen ${PORT}` via envsubst template (fix Railway port)
+- ✅ railway.toml explícito en client/
+
+### Páginas implementadas
+- ✅ MenuPage.tsx: hero 100vh layebrams.jpg, tabs categorías, grid cards, modal detalle plato
+- ✅ CheckoutPage.tsx: nombre, teléfono, toggle delivery/pickup, datos pago móvil, upload comprobante base64, POST /api/public/orders
+- ✅ ConfirmPage.tsx: número pedido, link WhatsApp prellenado con datos del pedido
+- ✅ NotificationModal: suscripción push post-pedido, vinculada al teléfono del cliente
+- ✅ Pantalla cerrado: horario automático Venezuela UTC-4 + toggle BUSINESS_ACTIVE manual
+
+### Backend endpoints públicos (sin auth)
+- ✅ GET /api/public/menu — menú completo con imageUrl
+- ✅ GET /api/public/config — 14 claves + vapidPublicKey
+- ✅ POST /api/public/orders — crea pedido desde web, normaliza teléfono, guarda comprobante base64
+
+### Diseño PWA
+- ✅ Hero 100vh con imagen layebrams.jpg (raw.githubusercontent.com), overlay gradiente, CTA "Ver menú ↓"
+- ✅ Cards con efecto neon dorado al hover/touch (border + box-shadow #F5C518)
+- ✅ Bottom sheet modal de detalle de plato: imagen 16:9, descripción completa, precio, agregar/quitar
+- ✅ Tabs de categorías con backdrop-blur, tab activo dorado
+- ✅ CartDrawer premium: thumbnail por ítem, total con Bs en línea separada, glow en botón
+- ✅ Floating cart bar: "N ítems / Ver pedido / $total"
+- ✅ Logo header: avatar "Y" dorado #F5C518 sobre fondo negro, sin dependencias externas
+- ✅ Ícono PWA: emoji 🍗 en SVG circular #111111, manifest.json con rutas locales
+
+### Service Worker v4
+- ✅ Network-first para HTML/navegación (siempre HTML fresco en cada deploy)
+- ✅ Cache-first para /assets/*.js y /assets/*.css (hash único por build)
+- ✅ skipWaiting controlado por usuario (no automático)
+- ✅ Toast "Nueva versión disponible" en React con botón Actualizar
+- ✅ clients.claim() en activate
+
+### Imágenes
+- ✅ URLs actualizadas de jsDelivr a raw.githubusercontent.com (hero + logo)
+- ✅ BD actualizada: 3 productos con imageUrl migrados de jsDelivr a raw.githubusercontent.com
+  (layebrams, lacesar, clubhousemixto)
+- ✅ Repo GitHub público — raw.githubusercontent.com accesible sin auth
 
 ## Sesión 2026-04-14 — Completado
 - Migración 20260413000001_add_missing_tables aplicada en Railway
-- Seed ejecutado exitosamente: 19 configs, 10 categorías, 62 ítems
-- Dashboard muestra menú correctamente
-- Campo imageUrl agregado en formulario create/edit de MenuPage.tsx
-- Backend POST /api/menu/items acepta imageUrl
-- Columna imageUrl ya existía en menu_items (schema.prisma)
+- Seed ejecutado: 19 configs, 10 categorías, 62 ítems
+- Campo imageUrl agregado en formulario create/edit de MenuPage dashboard
+- Backend POST/PATCH /api/menu/items acepta imageUrl
 
 ## Sesión 2026-04-15 — Completado
 - imageUrl funciona en dashboard ✅
-- Todas las fotos disponibles cargadas en BD ✅
-  (layebrams, lacesar, picongreen, triplesmash, clubhousemixto)
-- GitHub + jsDelivr como CDN ✅
-- Log debug PATCH eliminado ✅
-
-## Sesión 2026-04-15 parte 2 — Completado
-- PASO 1 ✅ client/ creado con Vite React TS
-- PASO 2 ✅ Rutas en App.tsx (/, /checkout, /confirm, /review/:id, /driver/:id)
-- PASO 3 ✅ GET /api/public/menu y GET /api/public/config (sin auth)
-- PASO 4 ✅ manifest.json + sw.js + index.html PWA
-- PASO 5 ✅ Primera parte:
-  - useCart() hook con localStorage
-  - Layout.tsx con header sticky + botón carrito
-  - CartDrawer.tsx con totales USD + Bs
-  - MenuPage.tsx completo: hero, tabs categorías, grid cards, placeholder 🍽️
-
-## Decisión tomada — Almacenamiento de imágenes
-GitHub + jsDelivr CDN (gratuito, sin backend extra)
-
-## Fase 2 — PWA Cliente
-⏳ PENDIENTE — próxima sesión
-
-## Productos sin foto — Placeholder PWA
-Los productos sin imageUrl mostrarán placeholder elegante:
-- Fondo oscuro #2A2A2A
-- Ícono de tenedor/plato centrado
-- Nombre del producto debajo
-- Paleta: negro #1A1A1A + dorado #D4A017
-
-## Fase 2 — PWA Cliente
-🔄 EN PROGRESO
-
-Completado:
-- ✅ Proyecto client/ Vite React TS
-- ✅ Rutas (/, /checkout, /confirm, /review/:id, /driver/:id)
-- ✅ Endpoints públicos backend (/api/public/menu, /api/public/config)
-- ✅ PWA manifest + Service Worker
-- ✅ useCart hook + Layout + CartDrawer + MenuPage
-
-Próximo paso — PASO 5 continuación:
-- CheckoutPage.tsx: nombre, teléfono, dirección, toggle Delivery/Pickup,
-  datos pago móvil, upload comprobante, POST /api/orders/web
-- ConfirmPage.tsx con link WhatsApp prellenado
-- Modal primera visita + suscripción push
-- Deploy client/ en Railway
+- Fotos menu yebrams cargadas en BD ✅ (layebrams, lacesar, picongreen, triplesmash, clubhousemixto)
+- GitHub + raw.githubusercontent.com como CDN ✅
+- PWA Cliente completa y deployada ✅
 
 ## Fase 3 — PWA Motorizado
 ⏳ PENDIENTE
@@ -102,4 +90,4 @@ Próximo paso — PASO 5 continuación:
 2. ESTADO_ACTUAL.md
 3. FEATURES.md
 
-Arrancar directamente con Fase 2 — PWA Cliente.
+Arrancar con Fase 3 — PWA Motorizado (/driver/:orderId).
