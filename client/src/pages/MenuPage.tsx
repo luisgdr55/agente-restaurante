@@ -4,10 +4,12 @@ import { publicApi, isRestaurantOpen, type MenuCategory, type PublicConfig } fro
 import { useCart } from '../store/cart'
 import Layout from '../components/Layout'
 import CartDrawer from '../components/CartDrawer'
+import ItemDetailSheet from '../components/ItemDetailSheet'
+import type { MenuItem } from '../api/api'
 
 const HERO_BG = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/layebrams.jpg'
 
-function ItemPlaceholder({ name }: { name: string }) {
+function ItemPlaceholder() {
   return (
     <div style={{
       width: '100%', aspectRatio: '4/3',
@@ -15,14 +17,7 @@ function ItemPlaceholder({ name }: { name: string }) {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
     }}>
-      <span style={{ fontSize: '2.2rem', opacity: 0.6 }}>🍽️</span>
-      <span style={{
-        fontSize: '0.68rem', color: 'var(--text-muted)',
-        textAlign: 'center', padding: '0 0.6rem',
-        lineHeight: 1.3,
-        overflow: 'hidden', display: '-webkit-box',
-        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-      }}>{name}</span>
+      <span style={{ fontSize: '2.2rem', opacity: 0.4 }}>🍽️</span>
     </div>
   )
 }
@@ -34,19 +29,15 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [heroError, setHeroError] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { items, add, remove, total, count } = useCart()
   const navigate = useNavigate()
 
   useEffect(() => {
+    console.log('[Yebram\'s] Hero image URL:', HERO_BG)
     Promise.all([publicApi.getMenu(), publicApi.getConfig()])
       .then(([menuData, configData]) => {
-        // Debug: ver qué URLs llegan en el menú
-        if (import.meta.env.DEV) {
-          menuData.forEach(cat => cat.items.forEach(item => {
-            console.log(`[menu] ${item.name} → imageUrl:`, item.imageUrl)
-          }))
-        }
         setMenu(menuData)
         setConfig(configData)
         if (menuData.length > 0) setActiveCategory(menuData[0].id)
@@ -118,10 +109,10 @@ export default function MenuPage() {
 
   return (
     <Layout cartCount={count} onCartClick={() => setCartOpen(true)}>
-      {/* ── Hero ── */}
+      {/* ── Hero — ocupa el 100% del viewport ── */}
       <div style={{
         position: 'relative',
-        minHeight: '62vh',
+        height: '100vh',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         textAlign: 'center',
@@ -136,7 +127,10 @@ export default function MenuPage() {
             src={HERO_BG}
             alt=""
             aria-hidden="true"
-            onError={() => setHeroError(true)}
+            onError={() => {
+              console.warn('[Yebram\'s] Hero image failed to load:', HERO_BG)
+              setHeroError(true)
+            }}
             style={{
               position: 'absolute', inset: 0,
               width: '100%', height: '100%',
@@ -146,12 +140,12 @@ export default function MenuPage() {
           />
         )}
 
-        {/* Dark overlay — gradient para mejor legibilidad abajo */}
+        {/* Overlay */}
         <div style={{
           position: 'absolute', inset: 0,
           background: heroError
             ? 'transparent'
-            : 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.65) 60%, rgba(0,0,0,0.82) 100%)',
+            : 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.85) 100%)',
         }} />
 
         {/* Content */}
@@ -187,30 +181,45 @@ export default function MenuPage() {
             borderRadius: 20,
             padding: '0.35rem 0.9rem',
             fontSize: '0.8rem', color: '#F5C518', fontWeight: 600,
-            marginBottom: '2rem',
+            marginBottom: '2.25rem',
             backdropFilter: 'blur(4px)',
           }}>
             🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
           </div>
 
-          {/* CTA */}
           <div>
             <button
               onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })}
               style={{
-                padding: '0.85rem 2.4rem',
+                padding: '0.9rem 2.5rem',
                 background: '#F5C518',
                 color: '#000',
                 borderRadius: 30,
                 fontWeight: 800,
-                fontSize: '0.95rem',
+                fontSize: '1rem',
                 letterSpacing: '0.02em',
-                boxShadow: '0 4px 24px rgba(245,197,24,0.45)',
+                boxShadow: '0 4px 24px rgba(245,197,24,0.5)',
               }}
             >
               Ver menú ↓
             </button>
           </div>
+        </div>
+
+        {/* Scroll hint */}
+        <div style={{
+          position: 'absolute', bottom: '1.5rem',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem',
+          opacity: 0.5,
+          animation: 'bounce 2s infinite',
+        }}>
+          <div style={{ width: 1, height: 28, background: '#F5C518' }} />
+          <style>{`
+            @keyframes bounce {
+              0%, 100% { transform: translateY(0); opacity: 0.4; }
+              50%       { transform: translateY(6px); opacity: 0.7; }
+            }
+          `}</style>
         </div>
       </div>
 
@@ -261,12 +270,12 @@ export default function MenuPage() {
         {activeItems.map((item) => {
           const inCart = items.find((i) => i.id === item.id)
           const priceUsd = parseFloat(item.priceUsd)
-          // Imagen válida: existe, no es string vacío
           const hasImage = Boolean(item.imageUrl && item.imageUrl.trim() !== '')
 
           return (
             <div
               key={item.id}
+              onClick={() => setSelectedItem(item)}
               style={{
                 background: 'var(--surface)',
                 borderRadius: 14,
@@ -279,9 +288,10 @@ export default function MenuPage() {
                 boxShadow: inCart
                   ? '0 0 16px rgba(245,197,24,0.12)'
                   : '0 2px 8px rgba(0,0,0,0.3)',
+                cursor: 'pointer',
               }}
             >
-              {/* Image / Placeholder */}
+              {/* Image */}
               {hasImage ? (
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden' }}>
                   <img
@@ -289,36 +299,23 @@ export default function MenuPage() {
                     alt={item.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     onError={(e) => {
-                      // Si la imagen falla, mostrar el placeholder
                       const target = e.currentTarget
                       const parent = target.parentElement
                       if (parent) {
                         target.style.display = 'none'
                         parent.style.background = 'linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%)'
-                        parent.innerHTML = `
-                          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0.5rem">
-                            <span style="font-size:2.2rem;opacity:0.6">🍽️</span>
-                          </div>`
+                        parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%"><span style="font-size:2rem;opacity:0.4">🍽️</span></div>'
                       }
                     }}
                   />
                 </div>
               ) : (
-                <ItemPlaceholder name={item.name} />
+                <ItemPlaceholder />
               )}
 
               {/* Info */}
               <div style={{ padding: '0.65rem 0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <p style={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.3 }}>{item.name}</p>
-                {item.description && (
-                  <p style={{
-                    color: 'var(--text-muted)', fontSize: '0.72rem', lineHeight: 1.35,
-                    overflow: 'hidden', display: '-webkit-box',
-                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-                  }}>
-                    {item.description}
-                  </p>
-                )}
                 <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '0.88rem', marginTop: 'auto', paddingTop: '0.25rem' }}>
                   ${priceUsd.toFixed(2)}
                   <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.73rem' }}>
@@ -327,8 +324,11 @@ export default function MenuPage() {
                 </p>
               </div>
 
-              {/* Add/remove controls */}
-              <div style={{ padding: '0 0.75rem 0.75rem' }}>
+              {/* Add/remove — stop propagation para no abrir el sheet al tocar los botones */}
+              <div
+                style={{ padding: '0 0.75rem 0.75rem' }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {inCart ? (
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -340,7 +340,6 @@ export default function MenuPage() {
                         width: 30, height: 30, borderRadius: '50%',
                         background: 'rgba(255,255,255,0.1)', color: 'var(--text)',
                         fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.15s',
                       }}
                     >−</button>
                     <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--accent)' }}>
@@ -353,7 +352,6 @@ export default function MenuPage() {
                         background: 'var(--accent)', color: '#000',
                         fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800,
-                        transition: 'transform 0.1s',
                       }}
                     >+</button>
                   </div>
@@ -364,7 +362,6 @@ export default function MenuPage() {
                       width: '100%', padding: '0.5rem',
                       background: 'var(--accent)', color: '#000',
                       borderRadius: 8, fontWeight: 800, fontSize: '0.85rem',
-                      transition: 'opacity 0.15s',
                     }}
                   >
                     Agregar
@@ -404,6 +401,19 @@ export default function MenuPage() {
         </div>
       )}
 
+      {/* ── Item detail bottom sheet ── */}
+      {selectedItem && (
+        <ItemDetailSheet
+          item={selectedItem}
+          rate={rate}
+          cartItem={items.find((i) => i.id === selectedItem.id)}
+          onAdd={add}
+          onRemove={remove}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
+
+      {/* ── Cart drawer ── */}
       {cartOpen && (
         <CartDrawer
           items={items}
