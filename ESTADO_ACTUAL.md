@@ -70,15 +70,16 @@
 - PWA Cliente completa y deployada ✅
 
 ## Fase 3 — PWA Motorizado
-⏳ PENDIENTE
-- Página /driver/:orderId
-- Datos del pedido
-- Botón Entregado
+✅ COMPLETADA (implementada en sesión anterior)
+- DriverPage.tsx completa: carga pedido, muestra datos cliente+dirección+referencia, botón Confirmar Entrega
+- Backend: GET /api/public/orders/:id + POST /api/public/orders/:id/delivered (sin auth)
+- Push al cliente al confirmar + notificación WhatsApp admin + sendDeliveryNotifications
 
 ## Fase 4 — Reseñas desde PWA
-⏳ PENDIENTE
-- Página /review/:orderId
-- Estrellas + comentario
+✅ COMPLETADA (2026-04-15)
+- ReviewPage.tsx completa: 5 estrellas animadas con color por rating, textarea comentario opcional
+- Backend: POST /api/public/reviews/:orderId (sin auth), maneja unique constraint graciosamente
+- Push notification al cliente apunta a /review/:orderId tras entrega confirmada
 
 ## Fase 5 — Limpieza
 ⏳ PENDIENTE
@@ -90,4 +91,4 @@
 2. ESTADO_ACTUAL.md
 3. FEATURES.md
 
-Arrancar con Fase 3 — PWA Motorizado (/driver/:orderId).
+Próxima tarea: Fase 5 (limpieza) o nuevas features según Yebram's.

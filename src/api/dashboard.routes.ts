@@ -5,7 +5,8 @@ import jwt from 'jsonwebtoken';
 import { emitOrderUpdated, emitStatsUpdated } from '../websocket/socket-server';
 import { getTopCustomers, getCustomerStats } from '../customers/customer-stats';
 import { invalidateConfigCache, invalidateMenuCache, getConfig } from '../menu/config-service';
-import { buildCartSummary, createOrder, updateOrderStatus } from '../orders/order-service';
+import { buildCartSummary, createOrder, updateOrderStatus, emitTodayStats } from '../orders/order-service';
+import { sendPushToPhone } from '../notifications/push-service';
 import { sendDeliveryNotifications } from '../agent/handlers/order-delivered.helper';
 import {
   getDayPromos, addDayPromo, updateDayPromo, removeDayPromo, clearDayPromos,
@@ -136,13 +137,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         const extraData: Record<string, unknown> = { status };
         if (status === 'CANCELLED') { extraData.cancelledAt = new Date(); extraData.cancelReason = reason ?? 'Cancelado desde dashboard'; }
         if (status === 'DELIVERED') extraData.deliveredAt = new Date();
-        // DELIVERY marcado como listo → pasa a AWAITING_DRIVER_ASSIGNMENT (no a READY)
-        if (status === 'READY') {
-          const orderForDelivery = await prisma.order.findUnique({ where: { id }, select: { deliveryType: true } });
-          if (orderForDelivery?.deliveryType === 'DELIVERY') {
-            extraData.status = 'AWAITING_DRIVER_ASSIGNMENT';
-          }
-        }
+        // READY: registrar completedAt (cierre de métricas en cocina)
+        if (status === 'READY') extraData.completedAt = new Date();
 
         const order = await prisma.order.update({
           where: { id },
@@ -183,12 +179,12 @@ const adminPhone = await getConfig('ADMIN_PHONE');
             }
             case 'READY':
               if (order.deliveryType === 'DELIVERY') {
-                // DELIVERY → notificar al cliente que está listo, esperando motorizado
-                await whatsappClient.sendMessage(TEMPLATES.orderAwaitingDriver(customerPhone));
+                // DELIVERY → notificar al cliente que está listo y va en camino pronto
+                await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'DELIVERY'));
                 if (adminPhone) await whatsappClient.sendMessage(
                   textMessage(
                     adminPhone,
-                    `🛵 *Cocina* — Pedido listo para enviar\n*#${fId}* · ${customerName}\n\nAsigna el motorizado desde el dashboard.`,
+                    `🍗 *Cocina* — Pedido listo\n*#${fId}* · ${customerName}\n\nMarca "Salió a domicilio" desde el dashboard para generar el QR del motorizado.`,
                   ),
                 );
               } else {
@@ -245,13 +241,11 @@ const adminPhone = await getConfig('ADMIN_PHONE');
                   }
                   break;
                 case 'READY':
-                  // PICKUP → ORDER_READY; DELIVERY → sigue en ORDER_IN_KITCHEN hasta asignación de motorizado
-                  if (order.deliveryType !== 'DELIVERY') {
-                    await updateSessionState(customerPhone, 'ORDER_READY', {
-                      customerId: customerSession.customerId,
-                      activeOrderId: order.id,
-                    });
-                  }
+                  // Ambos tipos → ORDER_READY (DELIVERY ya no pasa por AWAITING_DRIVER_ASSIGNMENT)
+                  await updateSessionState(customerPhone, 'ORDER_READY', {
+                    customerId: customerSession.customerId,
+                    activeOrderId: order.id,
+                  });
                   break;
                 // DELIVERED: sesión ya gestionada por sendDeliveryNotifications
                 case 'PAYMENT_REJECTED':
@@ -1642,4 +1636,125 @@ const adminPhone = await getConfig('ADMIN_PHONE');
 
     return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
   });
+
+  // ─── Endpoints públicos para PWA motorizado (sin auth) ─────────────────────
+
+  // GET /api/public/orders/:id — datos mínimos para pantalla del motorizado
+  app.get<{ Params: { id: string } }>(
+    '/api/public/orders/:id',
+    async (req, reply) => {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          deliveryAddress: true,
+          deliveryReference: true,
+          customer: { select: { name: true, phone: true } },
+        },
+      });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      // Solo exponer si está activo en entrega o ya fue entregado recientemente
+      if (!['OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.status)) {
+        return reply.code(403).send({ error: 'Pedido no disponible' });
+      }
+      return order;
+    },
+  );
+
+  // POST /api/public/orders/:id/delivered — motorizado confirma entrega (sin auth)
+  app.post<{ Params: { id: string } }>(
+    '/api/public/orders/:id/delivered',
+    async (req, reply) => {
+      const { id } = req.params;
+      const order = await prisma.order.findUnique({
+        where: { id },
+        include: { customer: true, items: { include: { menuItem: true } } },
+      });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      if (order.status === 'DELIVERED') return { ok: true, message: 'Ya estaba entregado' };
+      if (order.status !== 'OUT_FOR_DELIVERY') {
+        return reply.code(409).send({ error: 'El pedido no está en camino' });
+      }
+
+      // Cerrar pedido
+      const updated = await prisma.order.update({
+        where: { id },
+        data: { status: 'DELIVERED', deliveredAt: new Date() },
+        include: { customer: true, items: { include: { menuItem: true } } },
+      });
+      emitOrderUpdated(updated);
+      void emitTodayStats();
+
+      // Push al cliente
+      const customerPhone = order.customer.phone;
+      void sendPushToPhone(
+        customerPhone,
+        '✅ Pedido entregado',
+        '¡Tu pedido llegó! Gracias por preferirnos 🙏',
+        `/review/${id}`,
+      );
+
+      // Notificaciones WhatsApp asíncronas (no bloquean la respuesta al motorizado)
+      void (async () => {
+        try {
+          await sendDeliveryNotifications(customerPhone, id);
+          const adminPhone = await getConfig('ADMIN_PHONE');
+          if (adminPhone) {
+            const fId = String(order.orderNumber).padStart(4, '0');
+            await whatsappClient.sendMessage(textMessage(adminPhone,
+              `✅ *PWA Motorizado* — Entregado\n*#${fId}* · ${order.customer.name ?? customerPhone}`));
+          }
+        } catch (err) {
+          logger.error({ err, orderId: id }, 'Post-delivery notifications failed');
+        }
+      })();
+
+      return { ok: true, message: 'Entrega confirmada' };
+    },
+  );
+
+  // POST /api/public/reviews/:orderId — cliente envía reseña desde PWA (sin auth)
+  app.post<{
+    Params: { orderId: string };
+    Body: { rating: number; comment?: string };
+  }>(
+    '/api/public/reviews/:orderId',
+    async (req, reply) => {
+      const { orderId } = req.params;
+      const { rating, comment } = req.body;
+
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return reply.code(400).send({ error: 'Rating debe ser entre 1 y 5' });
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, customerId: true, status: true },
+      });
+      if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
+      if (order.status !== 'DELIVERED') {
+        return reply.code(409).send({ error: 'Solo se puede reseñar pedidos entregados' });
+      }
+
+      try {
+        await prisma.review.create({
+          data: {
+            orderId,
+            customerId: order.customerId,
+            rating,
+            ...(comment?.trim() && { comment: comment.trim() }),
+          },
+        });
+        return { ok: true };
+      } catch (err: unknown) {
+        // Constraint único — ya existe reseña para este pedido
+        if ((err as { code?: string })?.code === 'P2002') {
+          return { ok: true, message: 'Ya registrada' };
+        }
+        throw err;
+      }
+    },
+  );
 }
