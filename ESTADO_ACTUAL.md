@@ -33,13 +33,36 @@ Cambios aplicados:
 - Backend POST /api/menu/items acepta imageUrl
 - Columna imageUrl ya existía en menu_items (schema.prisma)
 
-## Decisión pendiente — Almacenamiento de imágenes
-Confirmar al inicio de próxima sesión:
-- **Opción A**: Railway Volume (requiere endpoint upload en backend)
-- **Opción B**: Cloudinary gratuito (más simple, 25GB, sin backend extra)
+## Sesión 2026-04-15 — Completado
+- imageUrl funciona en dashboard ✅
+- Todas las fotos disponibles cargadas en BD ✅
+  (layebrams, lacesar, picongreen, triplesmash, clubhousemixto)
+- GitHub + jsDelivr como CDN ✅
+- Log debug PATCH eliminado ✅
+
+## Decisión tomada — Almacenamiento de imágenes
+GitHub + jsDelivr CDN (gratuito, sin backend extra)
 
 ## Fase 2 — PWA Cliente
 ⏳ PENDIENTE — próxima sesión
+
+## Productos sin foto — Placeholder PWA
+Los productos sin imageUrl mostrarán placeholder elegante:
+- Fondo oscuro #2A2A2A
+- Ícono de tenedor/plato centrado
+- Nombre del producto debajo
+- Paleta: negro #1A1A1A + dorado #D4A017
+
+## Fase 2 — PWA Cliente
+⏳ PENDIENTE — próxima sesión
+
+Material disponible para arrancar:
+- Hero: heropwa.png ✅
+- Logo: visible en heropwa.png ✅
+- Paleta: negro #1A1A1A + dorado #D4A017 ✅
+- 5 fotos de productos ✅
+- Menú completo en BD (62 ítems) ✅
+- Datos pago móvil en BD ✅
 
 Incluye:
 - manifest.json (instalable en homescreen)
@@ -53,12 +76,6 @@ Incluye:
 - Upload comprobante de pago
 - Link WhatsApp prellenado al confirmar pedido
 - Saludo personalizado LLM para clientes recurrentes
-
-Requiere antes de empezar:
-- Decisión sobre almacenamiento de imágenes (Opción A o B)
-- Fotos de productos de Yebram's
-- Zonas delivery con precios
-- Número WhatsApp del restaurante
 
 ## Fase 3 — PWA Motorizado
 ⏳ PENDIENTE
@@ -80,3 +97,5 @@ Requiere antes de empezar:
 1. CLAUDE.md
 2. ESTADO_ACTUAL.md
 3. FEATURES.md
+
+Arrancar directamente con Fase 2 — PWA Cliente.
