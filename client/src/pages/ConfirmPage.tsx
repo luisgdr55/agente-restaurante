@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import NotificationModal, { hasBeenAsked } from '../components/NotificationModal'
+import { saveActiveOrder } from './OrderTrackingPage'
 
 interface ConfirmState {
   orderNumber: number
@@ -41,7 +42,14 @@ export default function ConfirmPage() {
     return null
   }
 
-  const { orderNumber, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = state
+  const { orderNumber, orderId, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = state
+
+  // Persist active order for auto-redirect on next app open
+  useEffect(() => {
+    if (orderId && orderNumber && phone) {
+      saveActiveOrder({ orderId, orderNumber, status: 'PENDING_PAYMENT', phone })
+    }
+  }, [orderId, orderNumber, phone])
 
   const totalBs = (total * rate).toFixed(2)
 
@@ -131,6 +139,21 @@ export default function ConfirmPage() {
             ${total.toFixed(2)} | Bs {totalBs}
           </span>
         </div>
+
+        {/* ── CTA principal: seguir pedido ── */}
+        <button
+          onClick={() => navigate(`/order/${state.orderId}`)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            width: '100%', padding: '0.95rem',
+            background: 'var(--accent)', color: '#000',
+            borderRadius: 12, fontWeight: 800, fontSize: '1rem',
+            marginBottom: '0.75rem',
+            boxShadow: '0 4px 24px rgba(245,197,24,0.4)',
+          }}
+        >
+          📍 Seguir mi pedido
+        </button>
 
         {/* ── WhatsApp link ── */}
         <a
