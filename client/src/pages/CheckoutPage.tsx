@@ -135,7 +135,13 @@ export default function CheckoutPage() {
           vapidPublicKey: config?.vapidPublicKey ?? '',
         },
       })
-    } catch {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status: number; data: unknown }; message?: string }
+      if (axiosErr.response) {
+        console.error('[checkout] HTTP error', axiosErr.response.status, JSON.stringify(axiosErr.response.data))
+      } else {
+        console.error('[checkout] Network/unknown error', axiosErr.message, err)
+      }
       setError('Error al procesar el pedido. Intenta de nuevo.')
       setSubmitting(false)
     }

@@ -1574,85 +1574,90 @@ const adminPhone = await getConfig('ADMIN_PHONE');
       proofImageBase64?: string;
     };
   }>('/api/public/orders', async (req, reply) => {
-    const { customerName, phone, deliveryType, address, items, proofImageBase64 } = req.body;
+    try {
+      const { customerName, phone, deliveryType, address, items, proofImageBase64 } = req.body;
 
-    if (!customerName?.trim()) return reply.code(400).send({ error: 'customerName is required' });
-    if (!phone?.trim()) return reply.code(400).send({ error: 'phone is required' });
-    if (!items?.length) return reply.code(400).send({ error: 'items is required' });
-    if (deliveryType === 'DELIVERY' && !address?.trim()) {
-      return reply.code(400).send({ error: 'address is required for delivery' });
-    }
+      if (!customerName?.trim()) return reply.code(400).send({ error: 'customerName is required' });
+      if (!phone?.trim()) return reply.code(400).send({ error: 'phone is required' });
+      if (!items?.length) return reply.code(400).send({ error: 'items is required' });
+      if (deliveryType === 'DELIVERY' && !address?.trim()) {
+        return reply.code(400).send({ error: 'address is required for delivery' });
+      }
 
-    const normalizedPhone = normalizeDriverPhone(phone.trim());
+      const normalizedPhone = normalizeDriverPhone(phone.trim());
 
-    // findOrCreate customer
-    let customer = await prisma.customer.findUnique({ where: { phone: normalizedPhone } });
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
-          phone: normalizedPhone,
-          name: customerName.trim(),
-          conversationState: { state: 'IDLE' },
-          stats: { create: {} },
-        },
+      // findOrCreate customer
+      let customer = await prisma.customer.findUnique({ where: { phone: normalizedPhone } });
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            phone: normalizedPhone,
+            name: customerName.trim(),
+            conversationState: { state: 'IDLE' },
+            stats: { create: {} },
+          },
+        });
+      } else if (!customer.name && customerName.trim()) {
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { name: customerName.trim() },
+        });
+      }
+
+      // Load prices from DB
+      const menuItems = await prisma.menuItem.findMany({
+        where: { id: { in: items.map((i) => i.menuItemId) }, deletedAt: null },
       });
-    } else if (!customer.name && customerName.trim()) {
-      customer = await prisma.customer.update({
-        where: { id: customer.id },
-        data: { name: customerName.trim() },
+      if (menuItems.length !== items.length) {
+        return reply.code(400).send({ error: 'One or more menu items not found' });
+      }
+
+      const cart = items.map((i) => {
+        const mi = menuItems.find((m) => m.id === i.menuItemId)!;
+        return {
+          menuItemId: i.menuItemId,
+          name: mi.name,
+          quantity: i.quantity,
+          unitPriceUsd: parseFloat(mi.priceUsd.toString()),
+        };
       });
+
+      const deliveryFeeUsd = deliveryType === 'DELIVERY'
+        ? parseFloat((await getConfig('DELIVERY_FEE_USD')) ?? '1.50')
+        : 0;
+
+      const order = await createOrder({
+        customerId: customer.id,
+        cart,
+        deliveryType,
+        ...(address ? { deliveryAddress: address.trim() } : {}),
+        paymentMethod: 'PAGO_MOVIL',
+        deliveryFeeUsd,
+        ...(proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
+      });
+
+      const targetStatus = proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
+      await updateOrderStatus(order.id, targetStatus);
+
+      const full = await prisma.order.findUnique({
+        where: { id: order.id },
+        include: { customer: true, items: { include: { menuItem: true } } },
+      });
+      emitOrderUpdated(full ?? order);
+
+      // Save delivery address for next time
+      if (deliveryType === 'DELIVERY' && address?.trim()) {
+        await prisma.customer.update({
+          where: { id: customer.id },
+          data: { savedAddress: address.trim() },
+        }).catch(() => { /* non-critical */ });
+      }
+
+      return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
+    } catch (err) {
+      console.error('[POST /api/public/orders] Unhandled error:', err);
+      return reply.code(500).send({ error: 'Internal server error', detail: String(err) });
     }
-
-    // Load prices from DB
-    const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: items.map((i) => i.menuItemId) }, deletedAt: null },
-    });
-    if (menuItems.length !== items.length) {
-      return reply.code(400).send({ error: 'One or more menu items not found' });
-    }
-
-    const cart = items.map((i) => {
-      const mi = menuItems.find((m) => m.id === i.menuItemId)!;
-      return {
-        menuItemId: i.menuItemId,
-        name: mi.name,
-        quantity: i.quantity,
-        unitPriceUsd: parseFloat(mi.priceUsd.toString()),
-      };
-    });
-
-    const deliveryFeeUsd = deliveryType === 'DELIVERY'
-      ? parseFloat((await getConfig('DELIVERY_FEE_USD')) ?? '1.50')
-      : 0;
-
-    const order = await createOrder({
-      customerId: customer.id,
-      cart,
-      deliveryType,
-      ...(address ? { deliveryAddress: address.trim() } : {}),
-      paymentMethod: 'PAGO_MOVIL',
-      deliveryFeeUsd,
-      ...(proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
-    });
-
-    const targetStatus = proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
-    await updateOrderStatus(order.id, targetStatus);
-
-    const full = await prisma.order.findUnique({
-      where: { id: order.id },
-      include: { customer: true, items: { include: { menuItem: true } } },
-    });
-    emitOrderUpdated(full ?? order);
-
-    // Save delivery address for next time
-    if (deliveryType === 'DELIVERY' && address?.trim()) {
-      await prisma.customer.update({
-        where: { id: customer.id },
-        data: { savedAddress: address.trim() },
-      }).catch(() => { /* non-critical */ });
-    }
-
-    return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
   });
 
   // GET /api/public/customers/:phone — saved address lookup (no auth)
