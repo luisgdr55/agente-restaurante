@@ -15,12 +15,13 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
     <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       <header style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: '#111111',
-        borderBottom: '1px solid #2A2A2A',
-        padding: '0.75rem 1rem',
+        background: 'rgba(17,17,17,0.96)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        padding: '0.6rem 1rem',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           {logoError ? (
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
@@ -29,20 +30,31 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
               fontWeight: 900, fontSize: '1rem', color: '#000', flexShrink: 0,
             }}>Y</div>
           ) : (
-            <img
-              src={LOGO}
-              alt="Yebram's"
-              onError={() => setLogoError(true)}
-              style={{
-                height: 36, width: 'auto', maxWidth: 36,
-                borderRadius: '50%',
-                objectFit: 'contain',
-                background: '#2A2A2A',
-                flexShrink: 0,
-              }}
-            />
+            /* contenedor fijo 36x36 — la imagen se adapta sin distorsión */
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: '#2A2A2A', flexShrink: 0,
+              overflow: 'hidden',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <img
+                src={LOGO}
+                alt="Yebram's"
+                onError={() => setLogoError(true)}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  display: 'block',
+                }}
+              />
+            </div>
           )}
-          <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>Yebram's</span>
+          <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--accent)', letterSpacing: '-0.3px' }}>
+            Yebram's
+          </span>
         </div>
 
         {onCartClick && (
@@ -50,13 +62,15 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
             onClick={onCartClick}
             style={{
               position: 'relative',
-              background: 'var(--accent)',
-              color: '#000',
+              background: cartCount > 0 ? 'var(--accent)' : 'var(--surface)',
+              color: cartCount > 0 ? '#000' : 'var(--text-muted)',
               borderRadius: 20,
-              padding: '0.4rem 0.9rem',
+              padding: '0.4rem 0.85rem',
               fontWeight: 700,
               fontSize: '0.9rem',
               display: 'flex', alignItems: 'center', gap: '0.4rem',
+              transition: 'background 0.2s, color 0.2s',
+              border: cartCount > 0 ? 'none' : '1px solid #333',
             }}
           >
             🛒
@@ -67,7 +81,8 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
                 borderRadius: '50%',
                 width: 20, height: 20,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.75rem', fontWeight: 700,
+                fontSize: '0.72rem', fontWeight: 800,
+                animation: 'pulse 0.3s ease-out',
               }}>
                 {cartCount}
               </span>

@@ -24,65 +24,124 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
       <div
         onClick={onClose}
         style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200,
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.72)',
+          backdropFilter: 'blur(2px)',
+          zIndex: 200,
         }}
       />
 
       {/* Drawer */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--surface)',
-        borderRadius: '16px 16px 0 0',
+        background: '#1A1A1A',
+        borderRadius: '20px 20px 0 0',
         zIndex: 201,
-        maxHeight: '80vh',
+        maxHeight: '82vh',
         display: 'flex', flexDirection: 'column',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
       }}>
-        {/* Handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem' }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: '#555' }} />
+        {/* Handle bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '0.8rem 0 0' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#444' }} />
         </div>
 
-        <div style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '1.1rem', color: 'var(--text)' }}>Tu pedido</h2>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+        {/* Header */}
+        <div style={{
+          padding: '0.75rem 1.25rem 0.75rem',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+        }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+              Tu pedido
+            </h2>
+            {items.length > 0 && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.1rem 0 0' }}>
+                {items.reduce((s, i) => s + i.quantity, 0)} {items.reduce((s, i) => s + i.quantity, 0) === 1 ? 'ítem' : 'ítems'}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: '#2A2A2A', color: 'var(--text-muted)',
+              fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >×</button>
         </div>
 
         {/* Items */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 1rem' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0.5rem 1.25rem' }}>
           {items.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>
-              Tu carrito está vacío
-            </p>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', padding: '3rem 0', gap: '0.5rem',
+            }}>
+              <span style={{ fontSize: '2.5rem' }}>🛒</span>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Tu carrito está vacío</p>
+            </div>
           ) : (
-            items.map((item) => (
+            items.map((item, idx) => (
               <div key={item.id} style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.75rem 0',
-                borderBottom: '1px solid #333',
+                display: 'flex', alignItems: 'center', gap: '0.85rem',
+                padding: '0.85rem 0',
+                borderBottom: idx < items.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
               }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</p>
-                  <p style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
-                    ${(item.priceUsd * item.quantity).toFixed(2)} | Bs {usdToBs(item.priceUsd * item.quantity, rate)}
+                {/* Thumb */}
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    style={{
+                      width: 48, height: 48, borderRadius: 8,
+                      objectFit: 'cover', flexShrink: 0,
+                    }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 8,
+                    background: '#2A2A2A', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.2rem',
+                  }}>🍽️</div>
+                )}
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: 600, fontSize: '0.88rem', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {item.name}
+                  </p>
+                  <p style={{ color: 'var(--accent)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                    ${(item.priceUsd * item.quantity).toFixed(2)}
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                      {' '}| Bs {usdToBs(item.priceUsd * item.quantity, rate)}
+                    </span>
                   </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+                {/* Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                   <button
                     onClick={() => onRemove(item.id)}
                     style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: 'var(--surface2)', color: 'var(--text)',
+                      width: 30, height: 30, borderRadius: '50%',
+                      background: '#2A2A2A', color: 'var(--text)',
                       fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}
                   >−</button>
-                  <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 700 }}>{item.quantity}</span>
+                  <span style={{ minWidth: 18, textAlign: 'center', fontWeight: 800, fontSize: '0.95rem' }}>
+                    {item.quantity}
+                  </span>
                   <button
                     onClick={() => onAdd({ id: item.id, name: item.name, priceUsd: item.priceUsd, imageUrl: item.imageUrl })}
                     style={{
-                      width: 28, height: 28, borderRadius: '50%',
+                      width: 30, height: 30, borderRadius: '50%',
                       background: 'var(--accent)', color: '#000',
                       fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700,
+                      fontWeight: 800,
                     }}
                   >+</button>
                 </div>
@@ -93,25 +152,50 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
 
         {/* Footer */}
         {items.length > 0 && (
-          <div style={{ padding: '1rem', borderTop: '1px solid #333' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <span>Subtotal</span>
-              <span>${total.toFixed(2)} | Bs {usdToBs(total, rate)}</span>
+          <div style={{
+            padding: '1rem 1.25rem 1.5rem',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            background: '#1A1A1A',
+          }}>
+            {/* Subtotal row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>Subtotal</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>
+                ${total.toFixed(2)} | Bs {usdToBs(total, rate)}
+              </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <span>Delivery</span>
-              <span>${deliveryFeeUsd.toFixed(2)} | Bs {usdToBs(deliveryFeeUsd, rate)}</span>
+            {/* Delivery row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>Delivery</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>
+                ${deliveryFeeUsd.toFixed(2)} | Bs {usdToBs(deliveryFeeUsd, rate)}
+              </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontWeight: 700, fontSize: '1rem' }}>
-              <span>Total</span>
-              <span style={{ color: 'var(--accent)' }}>${grandTotal.toFixed(2)} | Bs {usdToBs(grandTotal, rate)}</span>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: '0.85rem' }} />
+
+            {/* Total */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '1rem' }}>Total</span>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: '1.15rem' }}>
+                  ${grandTotal.toFixed(2)}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block' }}>
+                  Bs {usdToBs(grandTotal, rate)}
+                </span>
+              </div>
             </div>
+
             <button
               onClick={onCheckout}
               style={{
-                width: '100%', padding: '0.85rem',
+                width: '100%', padding: '0.9rem',
                 background: 'var(--accent)', color: '#000',
-                borderRadius: 10, fontWeight: 700, fontSize: '1rem',
+                borderRadius: 12, fontWeight: 800, fontSize: '1rem',
+                letterSpacing: '0.01em',
+                boxShadow: '0 4px 20px rgba(245,197,24,0.35)',
               }}
             >
               Ir a pagar →
