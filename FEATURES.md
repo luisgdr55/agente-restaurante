@@ -23,3 +23,13 @@ Tiempo estimado según carga actual de cocina
 
 ## FEATURE 6 — Analytics por cliente
 Frecuencia, ticket promedio, ítems favoritos.
+
+## FEATURE 7 — Multi-pedido por motorizado
+Un motorizado puede llevar varios pedidos simultáneos.
+El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"
+y genera un QR maestro. El motorizado escanea ese QR único
+y ve una lista secuencial de entregas ordenadas por cercanía:
+cliente 1 → cliente 2 → cliente 3.
+Cada entrega tiene su propio botón "Confirmar entrega" independiente.
+Al confirmar cada una, push al cliente correspondiente.
+El dashboard muestra el progreso de la ruta en tiempo real.
