@@ -1,7 +1,11 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Instalar dependencias (layer cacheado si package.json no cambia)
 COPY package.json package-lock.json* ./
 RUN npm ci --frozen-lockfile
+
+# Copiar fuentes y buildear (invalidado en cada cambio de código)
 COPY . .
 RUN npm run build
 
