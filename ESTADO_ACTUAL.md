@@ -72,6 +72,13 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `evolution_db` eliminado de `scripts/init-db.sql`
 - `src/agent/` conservado en su lugar (importado por dashboard.routes.ts y whatsapp/); el agente conversacional compila pero no recibe tráfico sin webhook activo
 
+## Sesión 2026-04-15 — Footer crédito desarrollador
+- Footer en PWA cliente (debajo de cards, siempre al final del scroll)
+- Separador dorado 1px 20% opacidad, `</>` ⚡ Potenciado por tecnología
+- "Desarrollado por Luis" con "Luis" en dorado #F5C518
+- Chip "Quiero esto para mi negocio →" abre WhatsApp `wa.me/584165434760`
+- Hover ilumina chip en dorado, `safe-area-inset-bottom` para iPhone
+
 ## Próximo paso: prueba end-to-end en producción
 
 Checklist completo a verificar:
