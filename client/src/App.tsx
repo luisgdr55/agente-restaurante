@@ -7,6 +7,7 @@ import ReviewPage from './pages/ReviewPage'
 import DriverPage from './pages/DriverPage'
 
 function App() {
+  console.log('%c[Yebram\'s] BUILD_V3 — SW cache invalidado', 'color:#F5C518;font-weight:bold')
   return (
     <BrowserRouter>
       <Routes>
