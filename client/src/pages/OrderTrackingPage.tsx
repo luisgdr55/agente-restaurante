@@ -159,7 +159,7 @@ export default function OrderTrackingPage() {
 
       // Update localStorage status
       const saved = loadActiveOrder()
-      if (saved?.orderId === orderId) {
+      if (saved && saved.orderId === orderId) {
         if (TERMINAL_STATUSES.includes(o.status)) {
           clearActiveOrder()
           localStorage.removeItem('yebrams_cart')
