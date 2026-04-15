@@ -1,7 +1,3 @@
-import { useState } from 'react'
-
-const LOGO = 'https://raw.githubusercontent.com/luisgdr55/agente-restaurante/master/public/menu-images/heropwa.png'
-
 interface LayoutProps {
   children: React.ReactNode
   cartCount?: number
@@ -9,8 +5,6 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, cartCount = 0, onCartClick }: LayoutProps) {
-  const [logoError, setLogoError] = useState(false)
-
   return (
     <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -22,36 +16,15 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          {logoError ? (
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 900, fontSize: '1rem', color: '#000', flexShrink: 0,
-            }}>Y</div>
-          ) : (
-            /* contenedor fijo 36x36 — la imagen se adapta sin distorsión */
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: '#2A2A2A', flexShrink: 0,
-              overflow: 'hidden',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <img
-                src={LOGO}
-                alt="Yebram's"
-                onError={() => setLogoError(true)}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  width: 'auto',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  display: 'block',
-                }}
-              />
-            </div>
-          )}
+          {/* Avatar de texto — no existe archivo logo separado en el repo */}
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#000',
+            border: '2px solid #F5C518',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 900, fontSize: '1.05rem', color: '#F5C518',
+            flexShrink: 0, letterSpacing: '-0.5px',
+          }}>Y</div>
           <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--accent)', letterSpacing: '-0.3px' }}>
             Yebram's
           </span>
