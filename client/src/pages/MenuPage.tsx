@@ -27,6 +27,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
+  const [heroError, setHeroError] = useState(false)
   const { items, add, remove, total, count } = useCart()
   const navigate = useNavigate()
 
@@ -96,17 +97,40 @@ export default function MenuPage() {
   return (
     <Layout cartCount={count} onCartClick={() => setCartOpen(true)}>
       {/* Hero */}
-      <div style={{ position: 'relative', width: '100%', maxHeight: 220, overflow: 'hidden' }}>
-        <img
-          src={HERO}
-          alt="Yebram's Restaurant"
-          style={{ width: '100%', objectFit: 'cover', display: 'block' }}
-        />
+      <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+        {heroError ? (
+          <div style={{
+            width: '100%', minHeight: 180,
+            background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 50%, #1A1A1A 100%)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '2rem 1rem',
+            borderBottom: '2px solid var(--accent)',
+          }}>
+            <p style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent)', letterSpacing: '-1px', marginBottom: '0.25rem' }}>
+              Yebram's
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Restaurant</p>
+          </div>
+        ) : (
+          <img
+            src={HERO}
+            alt="Yebram's Restaurant"
+            onError={() => setHeroError(true)}
+            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
+          />
+        )}
+        {!heroError && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, transparent 40%, #1A1A1A 100%)',
+          }} />
+        )}
         <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to bottom, transparent 40%, #1A1A1A 100%)',
-        }} />
-        <div style={{ position: 'absolute', bottom: '1rem', left: '1rem' }}>
+          position: heroError ? 'static' : 'absolute',
+          bottom: '1rem', left: '1rem',
+          ...(heroError ? { display: 'none' } : {}),
+        }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
             Yebram's Restaurant
           </h1>
@@ -114,6 +138,13 @@ export default function MenuPage() {
             🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
           </p>
         </div>
+        {heroError && (
+          <div style={{ padding: '0.5rem 1rem 1rem', textAlign: 'center' }}>
+            <p style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600 }}>
+              🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Category tabs */}

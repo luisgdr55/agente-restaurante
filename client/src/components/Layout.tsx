@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 const LOGO = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/heropwa.png'
 
 interface LayoutProps {
@@ -7,6 +9,8 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, cartCount = 0, onCartClick }: LayoutProps) {
+  const [logoError, setLogoError] = useState(false)
+
   return (
     <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -17,7 +21,26 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <img src={LOGO} alt="Yebram's" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+          {logoError ? (
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 900, fontSize: '1rem', color: '#000', flexShrink: 0,
+            }}>Y</div>
+          ) : (
+            <img
+              src={LOGO}
+              alt="Yebram's"
+              onError={() => setLogoError(true)}
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                objectFit: 'contain',
+                background: '#2A2A2A',
+                flexShrink: 0,
+              }}
+            />
+          )}
           <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>Yebram's</span>
         </div>
 
