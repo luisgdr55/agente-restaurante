@@ -374,6 +374,66 @@ export default function MenuPage() {
         })}
       </div>
 
+      {/* ── Developer credit footer ── */}
+      <footer style={{
+        background: '#0D0D0D',
+        paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+        paddingTop: '1.75rem',
+        paddingLeft: '1.25rem',
+        paddingRight: '1.25rem',
+        textAlign: 'center',
+      }}>
+        {/* Separador dorado sutil */}
+        <div style={{
+          width: '48px', height: '1px',
+          background: 'rgba(245,197,24,0.2)',
+          margin: '0 auto 1.25rem',
+        }} />
+
+        {/* Línea técnica */}
+        <p style={{ fontSize: '11px', color: '#555', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>
+          <span style={{ opacity: 0.5 }}>&lt;/&gt;</span>
+          {'  '}⚡ Potenciado por tecnología
+        </p>
+
+        {/* Crédito */}
+        <p style={{ fontSize: '12px', color: '#888', marginBottom: '1rem' }}>
+          Desarrollado por{' '}
+          <span style={{ color: '#F5C518', fontWeight: 700 }}>Luis</span>
+        </p>
+
+        {/* CTA chip */}
+        <a
+          href="https://wa.me/584165434760?text=Hola%20Luis!%20Vi%20tu%20trabajo%20en%20Yebram's%20y%20me%20interesa%20un%20sistema%20as%C3%AD%20para%20mi%20negocio%20%F0%9F%8D%BD%EF%B8%8F"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            padding: '0.45rem 0.9rem',
+            border: '1px solid rgba(245,197,24,0.25)',
+            borderRadius: '999px',
+            fontSize: '11px',
+            color: '#aaa',
+            textDecoration: 'none',
+            letterSpacing: '0.02em',
+            transition: 'border-color 0.2s, color 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(245,197,24,0.6)'
+            e.currentTarget.style.color = '#F5C518'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(245,197,24,0.25)'
+            e.currentTarget.style.color = '#aaa'
+          }}
+        >
+          Quiero esto para mi negocio{' '}
+          <span style={{ fontSize: '10px', opacity: 0.8 }}>→</span>
+        </a>
+      </footer>
+
       {/* ── Floating cart bar ── */}
       {count > 0 && (
         <div style={{
