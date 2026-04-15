@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { publicApi, isRestaurantOpen, type MenuCategory, type PublicConfig } from '../api/api'
 import { useCart } from '../store/cart'
 import Layout from '../components/Layout'
 import CartDrawer from '../components/CartDrawer'
 
-const HERO = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/heropwa.png'
+const HERO_BG = 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/layebrams.jpg'
 
 function ItemPlaceholder({ name }: { name: string }) {
   return (
@@ -28,6 +28,7 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [heroError, setHeroError] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { items, add, remove, total, count } = useCart()
   const navigate = useNavigate()
 
@@ -97,58 +98,102 @@ export default function MenuPage() {
   return (
     <Layout cartCount={count} onCartClick={() => setCartOpen(true)}>
       {/* Hero */}
-      <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
-        {heroError ? (
-          <div style={{
-            width: '100%', minHeight: 180,
-            background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 50%, #1A1A1A 100%)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            padding: '2rem 1rem',
-            borderBottom: '2px solid var(--accent)',
-          }}>
-            <p style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent)', letterSpacing: '-1px', marginBottom: '0.25rem' }}>
-              Yebram's
-            </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Restaurant</p>
-          </div>
-        ) : (
+      <div style={{
+        position: 'relative',
+        minHeight: '60vh',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        textAlign: 'center',
+        overflow: 'hidden',
+        background: heroError
+          ? 'linear-gradient(160deg, #1A1A1A 0%, #2A2A2A 60%, #1A1A1A 100%)'
+          : undefined,
+      }}>
+        {/* Background image */}
+        {!heroError && (
           <img
-            src={HERO}
-            alt="Yebram's Restaurant"
+            src={HERO_BG}
+            alt=""
+            aria-hidden="true"
             onError={() => setHeroError(true)}
-            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+            }}
           />
         )}
-        {!heroError && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(to bottom, transparent 40%, #1A1A1A 100%)',
-          }} />
-        )}
+
+        {/* Dark overlay */}
         <div style={{
-          position: heroError ? 'static' : 'absolute',
-          bottom: '1rem', left: '1rem',
-          ...(heroError ? { display: 'none' } : {}),
-        }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-            Yebram's Restaurant
+          position: 'absolute', inset: 0,
+          background: heroError
+            ? 'transparent'
+            : 'rgba(0,0,0,0.58)',
+        }} />
+
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 1, padding: '3rem 1.5rem 2rem' }}>
+          <h1 style={{
+            fontSize: 'clamp(2.4rem, 10vw, 4rem)',
+            fontWeight: 900,
+            color: '#FFFFFF',
+            letterSpacing: '-1px',
+            lineHeight: 1.1,
+            marginBottom: '0.5rem',
+            textShadow: '0 2px 16px rgba(0,0,0,0.7)',
+          }}>
+            Yebram's
           </h1>
-          <p style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600 }}>
-            🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
+          <p style={{
+            fontSize: 'clamp(0.85rem, 4vw, 1.15rem)',
+            fontWeight: 800,
+            color: '#F5C518',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: '1.5rem',
+            textShadow: '0 1px 8px rgba(0,0,0,0.6)',
+          }}>
+            Tu menú super crujiente
           </p>
-        </div>
-        {heroError && (
-          <div style={{ padding: '0.5rem 1rem 1rem', textAlign: 'center' }}>
-            <p style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600 }}>
-              🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
-            </p>
+
+          {/* Delivery badge */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            background: 'rgba(0,0,0,0.55)',
+            border: '1px solid rgba(245,197,24,0.4)',
+            borderRadius: 20,
+            padding: '0.35rem 0.9rem',
+            fontSize: '0.82rem', color: '#F5C518', fontWeight: 600,
+            marginBottom: '2rem',
+          }}>
+            🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
           </div>
-        )}
+
+          {/* CTA */}
+          <div>
+            <button
+              onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              style={{
+                padding: '0.8rem 2.2rem',
+                background: '#F5C518',
+                color: '#000',
+                borderRadius: 30,
+                fontWeight: 800,
+                fontSize: '1rem',
+                letterSpacing: '0.02em',
+                boxShadow: '0 4px 20px rgba(245,197,24,0.4)',
+              }}
+            >
+              Ver menú ↓
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Category tabs */}
-      <div style={{
+      <div ref={menuRef} style={{
         position: 'sticky', top: 57, zIndex: 50,
         background: 'var(--bg)',
         borderBottom: '1px solid #2A2A2A',
