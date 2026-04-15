@@ -39,13 +39,14 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 **Páginas:**
 - `MenuPage` — hero 100vh, tabs categorías, grid cards neon, modal detalle, CartDrawer, floating bar
 - `CheckoutPage` — nombre/teléfono, toggle delivery/pickup, datos pago móvil, upload comprobante base64
-- `ConfirmPage` — número de pedido, link WhatsApp prellenado, modal suscripción push
+- `ConfirmPage` — número de pedido, link WhatsApp prellenado completo, modal suscripción push
 - Pantalla de cerrado — horario automático Venezuela UTC-4 + toggle BUSINESS_ACTIVE
 
 **Backend público (sin auth):**
 - `GET /api/public/menu` — menú con imageUrl
 - `GET /api/public/config` — 14 claves + vapidPublicKey
-- `POST /api/public/orders` — crea pedido, normaliza teléfono, guarda comprobante
+- `POST /api/public/orders` — crea pedido, normaliza teléfono, guarda comprobante, actualiza savedAddress
+- `GET /api/public/customers/:phone` — devuelve savedAddress para checkout
 
 **Infraestructura:**
 - Vite React TS + Dockerfile + nginx con `listen ${PORT}` envsubst
@@ -72,32 +73,73 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `evolution_db` eliminado de `scripts/init-db.sql`
 - `src/agent/` conservado en su lugar (importado por dashboard.routes.ts y whatsapp/); el agente conversacional compila pero no recibe tráfico sin webhook activo
 
-## Sesión 2026-04-15 — Footer crédito desarrollador
-- Footer en PWA cliente (debajo de cards, siempre al final del scroll)
-- Separador dorado 1px 20% opacidad, `</>` ⚡ Potenciado por tecnología
-- "Desarrollado por Luis" con "Luis" en dorado #F5C518
-- Chip "Quiero esto para mi negocio →" abre WhatsApp `wa.me/584165434760`
-- Hover ilumina chip en dorado, `safe-area-inset-bottom` para iPhone
+### Fase 6 — Fixes y mejoras UX (sesión 2026-04-15) ✅
 
-## Próximo paso: prueba end-to-end en producción
+#### Fix: Upload comprobante — galería + cámara
+- Eliminado `capture="environment"` del `<input>` en CheckoutPage
+- El OS ahora muestra selector nativo (galería + cámara) en lugar de abrir cámara directamente
 
-Checklist completo a verificar:
+#### Fix: Dirección guardada en Checkout
+- `GET /api/public/customers/:phone` — sin auth, devuelve `{ savedAddress }` normalizado
+- `POST /api/public/orders` actualiza `customer.savedAddress` al confirmar un delivery
+- CheckoutPage: fetch con debounce 600ms al ingresar teléfono
+- Card dorada "📍 Dirección anterior" con botones **Usar esta** / **Ingresar otra**
+- Auto-selecciona "Usar esta" si el campo estaba vacío al encontrar la dirección
+
+#### Fix: Botón "Vaciar carrito"
+- Botón 🗑️ **Vaciar** en rojo sutil en header del CartDrawer
+- Solo visible cuando hay ítems; pide `window.confirm()` antes de limpiar
+- Cierra el drawer automáticamente al confirmar
+
+#### Fix: Migración `orderNumber`
+- La columna `orderNumber` existía en el schema pero no en ninguna migración
+- Creada migración `20260415000002_add_order_number` con sequence + unique constraint
+- Aplicada manualmente vía `prisma migrate deploy` apuntando a Railway DATABASE_URL
+- Verificado: columna existe y pedidos crean correctamente
+
+#### Fix: Mensaje WhatsApp prellenado completo (ConfirmPage)
+- El link `wa.me` ahora incluye: nombre, #pedido, lista ítems con cantidades y precios, total USD+Bs, tipo delivery con dirección o pickup, banco/teléfono/titular/RIF del pago móvil
+- CheckoutPage pasa todos los datos en el state de navegación
+- CheckoutPage guarda `yebrams_last_phone` en localStorage al confirmar pedido exitoso
+
+#### Feature: Comprobante + OCR en dashboard (OrderCard)
+- `GET /api/orders/:id/proof` — devuelve `paymentImageUrl` solo cuando se solicita (evita base64 en listings)
+- `POST /api/orders/:id/ocr-payment` — Claude claude-sonnet-4-5 via OpenRouter con visión, extrae: referencia, fecha, hora, monto, banco origen, banco destino, titular. Devuelve JSON
+- `serializeOrders()` en backend reemplaza `paymentImageUrl` por `hasPaymentImage: boolean` en todos los listings (payload más liviano)
+- OrderCard: botón "Ver comprobante 🧾" → modal con imagen on-demand + botón "🔍 Extraer datos OCR" → tabla con datos extraídos
+
+#### Feature: Push notifications en desktop/MenuPage
+- Botón "🔔 Activar notificaciones de pedidos" en MenuPage
+- Solo aparece si: `Notification.permission === 'default'` + `yebrams_last_phone` en localStorage + browser soporta service workers
+- Solicita permiso, registra suscripción push con el último teléfono usado
+
+## Próximos pasos recomendados
+
+1. [ ] Prueba end-to-end completa en producción (ver checklist abajo)
+2. [ ] Verificar OCR: subir comprobante real y probar extracción de datos
+3. [ ] Confirmar que `savedAddress` se rellena correctamente en segundo pedido
+4. [ ] Probar push notifications en desktop Chrome y Safari
+
+## Checklist end-to-end
+
 1. [ ] Abrir PWA cliente, hacer pedido completo (delivery + pago móvil + foto comprobante)
 2. [ ] Admin recibe push con datos del pedido y comprobante
-3. [ ] Admin confirma pago → cliente recibe push "Pago confirmado"
-4. [ ] Cocina marca READY → cliente recibe push "Pedido listo"
-5. [ ] Admin toca "Salió a domicilio" → modal QR aparece
-6. [ ] Motorizado escanea QR → ve DriverPage con datos correctos
-7. [ ] Motorizado toca "Confirmar Entrega" → cliente recibe push "Entregado" con link /review
-8. [ ] Cliente abre /review/:id → califica → aparece en dashboard > Reseñas
-9. [ ] Verificar métricas dashboard: pedidos entregados usan completedAt
-10. [ ] Probar PICKUP: pedido sin delivery → botón "Cliente retiró" directo
+3. [ ] Dashboard muestra botón "Ver comprobante 🧾" → imagen se abre → OCR extrae datos
+4. [ ] Admin confirma pago → cliente recibe push "Pago confirmado"
+5. [ ] Cocina marca READY → cliente recibe push "Pedido listo"
+6. [ ] Admin toca "Salió a domicilio" → modal QR aparece
+7. [ ] Motorizado escanea QR → ve DriverPage con datos correctos
+8. [ ] Motorizado toca "Confirmar Entrega" → cliente recibe push "Entregado" con link /review
+9. [ ] Cliente abre /review/:id → califica → aparece en dashboard > Reseñas
+10. [ ] Segundo pedido del mismo cliente: dirección guardada aparece en checkout
+11. [ ] Mensaje WhatsApp prellenado incluye todos los datos del pedido
+12. [ ] Botón 🔔 push aparece en MenuPage para usuarios que ya pidieron (desktop)
 
 ## Notas de deploy (Railway)
 
-- La migración `20260415000001_add_completed_at` se aplica automáticamente en el próximo deploy
-- No requiere seed manual — solo `prisma migrate deploy` que corre en el start command
-- `qrcode.react` se instala en el build del dashboard automáticamente
+- Migración `20260415000002_add_order_number` ya aplicada manualmente en Railway
+- Las migraciones siguientes se aplican automáticamente en el próximo deploy vía `prisma migrate deploy`
+- No requiere seed manual
 
 ## Al iniciar próxima sesión leer en orden
 1. CLAUDE.md
