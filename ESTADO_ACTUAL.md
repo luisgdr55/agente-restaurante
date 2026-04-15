@@ -16,14 +16,14 @@
 ```
 Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvil/comprobante)
   → POST /api/public/orders
+  → ConfirmPage guarda pedido en localStorage → muestra botón "📍 Seguir mi pedido"
   → Admin recibe push "Nuevo pedido" + comprobante
-  → Admin confirma pago en dashboard
-  → Cliente recibe push "Pago confirmado" + pedido en cocina
-  → Cocina marca READY en kitchen dashboard
-  → Cliente recibe push "Pedido listo"
+  → Admin confirma pago en dashboard → push al cliente con url /order/:id
+  → Cliente ve tracking: barra de progreso 5 fases con polling 10s
+  → Cocina marca READY → push al cliente
   → Admin toca "Salió a domicilio" → QR modal con link /driver/:id
   → Motorizado escanea QR, ve datos del cliente, toca "Confirmar Entrega"
-  → Cliente recibe push "Entregado" + link /review/:id
+  → Cliente recibe push "Entregado" con link /review/:id
   → Cliente califica 1-5 estrellas + comentario opcional
 ```
 
@@ -31,15 +31,16 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 
 ### Fase 1 — Backend Push Notifications ✅
 - Tabla `push_subscriptions` en BD
-- `POST /api/public/push/subscribe` — guarda suscripción vinculada al teléfono
-- `sendPushToPhone(phone, title, body, url?)` — helper reutilizable
+- `POST /api/public/push/subscribe` — guarda suscripción vinculada al teléfono (siempre 584xx)
+- `sendPushToPhone(phone, title, body, url?)` — normaliza 04xx→584xx antes de buscar en BD
 - VAPID keys configuradas en Railway
 
 ### Fase 2 — PWA Cliente ✅
 **Páginas:**
-- `MenuPage` — hero 100vh, tabs categorías, grid cards neon, modal detalle, CartDrawer, floating bar
-- `CheckoutPage` — nombre/teléfono, toggle delivery/pickup, datos pago móvil, upload comprobante base64
-- `ConfirmPage` — número de pedido, link WhatsApp prellenado completo, modal suscripción push
+- `MenuPage` — hero 100vh, tabs categorías, grid cards neon, modal detalle, CartDrawer, floating bar, botón push desktop
+- `CheckoutPage` — nombre/teléfono, toggle delivery/pickup, dirección guardada, datos pago móvil, upload comprobante base64 (galería+cámara)
+- `ConfirmPage` — número de pedido, guarda activeOrder en localStorage, botón primario "📍 Seguir mi pedido", link WhatsApp prellenado completo
+- `OrderTrackingPage` — barra de progreso 5 fases, polling 10s, card PAYMENT_REJECTED con re-upload, auto-redirect desde /
 - Pantalla de cerrado — horario automático Venezuela UTC-4 + toggle BUSINESS_ACTIVE
 
 **Backend público (sin auth):**
@@ -47,6 +48,9 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `GET /api/public/config` — 14 claves + vapidPublicKey
 - `POST /api/public/orders` — crea pedido, normaliza teléfono, guarda comprobante, actualiza savedAddress
 - `GET /api/public/customers/:phone` — devuelve savedAddress para checkout
+- `GET /api/public/orders/:id/tracking` — status/items/totales/dirección para tracking page
+- `PATCH /api/public/orders/:id/payment-proof` — sube nuevo comprobante → PAYMENT_UPLOADED
+- `DELETE /api/public/orders/:id` — cancela pedido (solo PAYMENT_REJECTED/PENDING/UPLOADED)
 
 **Infraestructura:**
 - Vite React TS + Dockerfile + nginx con `listen ${PORT}` envsubst
@@ -57,89 +61,104 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `DriverPage` (`/driver/:orderId`) — carga datos pedido, cliente/dirección/referencia, teléfono clickeable, botón "Confirmar Entrega"
 - `GET /api/public/orders/:id` — datos mínimos, solo expone OUT_FOR_DELIVERY y DELIVERED
 - `POST /api/public/orders/:id/delivered` — cierra pedido, push al cliente, WhatsApp admin
-- `completedAt` registrado al marcar READY (cierre de métricas en cocina, no al DELIVERED)
 - QR modal en dashboard (`qrcode.react`) al tocar "🛵 Salió a domicilio" y en OUT_FOR_DELIVERY
-- Push notifications desde dashboard PATCH status: PAYMENT_CONFIRMED, READY, OUT_FOR_DELIVERY, DELIVERED
-- Push también al asignar motorizado (assign-driver → OUT_FOR_DELIVERY)
-- Botón "🛵 Salió a domicilio" para READY+DELIVERY; "✅ Cliente retiró" para READY+PICKUP
 
 ### Fase 4 — Reseñas desde PWA ✅
-- `ReviewPage` (`/review/:orderId`) — 5 estrellas animadas (color + glow por rating), label descriptivo, textarea opcional
-- `POST /api/public/reviews/:orderId` — sin auth, valida DELIVERED, maneja unique constraint (doble envío → ok)
-- Push al confirmar entrega apunta a `/review/:orderId`
+- `ReviewPage` (`/review/:orderId`) — 5 estrellas animadas, label descriptivo, textarea opcional
+- `POST /api/public/reviews/:orderId` — sin auth, valida DELIVERED
 
 ### Fase 5 — Limpieza ✅
-- Evolution API eliminada de `docker-compose.yml` (servicio + volumen)
-- `evolution_db` eliminado de `scripts/init-db.sql`
-- `src/agent/` conservado en su lugar (importado por dashboard.routes.ts y whatsapp/); el agente conversacional compila pero no recibe tráfico sin webhook activo
+- Evolution API eliminada de `docker-compose.yml`
+- `src/agent/` conservado pero sin tráfico activo
 
-### Fase 6 — Fixes y mejoras UX (sesión 2026-04-15) ✅
+### Fase 6 — Fixes y mejoras UX ✅
 
 #### Fix: Upload comprobante — galería + cámara
-- Eliminado `capture="environment"` del `<input>` en CheckoutPage
-- El OS ahora muestra selector nativo (galería + cámara) en lugar de abrir cámara directamente
+- Eliminado `capture="environment"` — el OS muestra selector nativo
 
 #### Fix: Dirección guardada en Checkout
-- `GET /api/public/customers/:phone` — sin auth, devuelve `{ savedAddress }` normalizado
-- `POST /api/public/orders` actualiza `customer.savedAddress` al confirmar un delivery
-- CheckoutPage: fetch con debounce 600ms al ingresar teléfono
-- Card dorada "📍 Dirección anterior" con botones **Usar esta** / **Ingresar otra**
-- Auto-selecciona "Usar esta" si el campo estaba vacío al encontrar la dirección
+- Fetch con debounce 600ms al ingresar teléfono
+- Card dorada "📍 Dirección anterior" con botones Usar esta / Ingresar otra
+- Backend actualiza `savedAddress` al confirmar delivery
 
-#### Fix: Botón "Vaciar carrito"
-- Botón 🗑️ **Vaciar** en rojo sutil en header del CartDrawer
-- Solo visible cuando hay ítems; pide `window.confirm()` antes de limpiar
-- Cierra el drawer automáticamente al confirmar
+#### Fix: Botón "Vaciar carrito" en CartDrawer
+- Botón 🗑️ con confirm() nativo, cierra drawer al confirmar
 
-#### Fix: Migración `orderNumber`
-- La columna `orderNumber` existía en el schema pero no en ninguna migración
-- Creada migración `20260415000002_add_order_number` con sequence + unique constraint
-- Aplicada manualmente vía `prisma migrate deploy` apuntando a Railway DATABASE_URL
-- Verificado: columna existe y pedidos crean correctamente
+#### Fix: Migración orderNumber
+- Columna `orderNumber` añadida vía migración `20260415000002_add_order_number`
+- Aplicada manualmente en Railway con `prisma migrate deploy`
 
-#### Fix: Mensaje WhatsApp prellenado completo (ConfirmPage)
-- El link `wa.me` ahora incluye: nombre, #pedido, lista ítems con cantidades y precios, total USD+Bs, tipo delivery con dirección o pickup, banco/teléfono/titular/RIF del pago móvil
-- CheckoutPage pasa todos los datos en el state de navegación
-- CheckoutPage guarda `yebrams_last_phone` en localStorage al confirmar pedido exitoso
+#### Fix: Mensaje WhatsApp prellenado completo
+- Incluye: nombre, #pedido, ítems con precios, total USD+Bs, delivery/pickup, datos pago móvil
 
-#### Feature: Comprobante + OCR en dashboard (OrderCard)
-- `GET /api/orders/:id/proof` — devuelve `paymentImageUrl` solo cuando se solicita (evita base64 en listings)
-- `POST /api/orders/:id/ocr-payment` — Claude claude-sonnet-4-5 via OpenRouter con visión, extrae: referencia, fecha, hora, monto, banco origen, banco destino, titular. Devuelve JSON
-- `serializeOrders()` en backend reemplaza `paymentImageUrl` por `hasPaymentImage: boolean` en todos los listings (payload más liviano)
-- OrderCard: botón "Ver comprobante 🧾" → modal con imagen on-demand + botón "🔍 Extraer datos OCR" → tabla con datos extraídos
+#### Feature: Comprobante + OCR en dashboard
+- `GET /api/orders/:id/proof` — imagen on-demand
+- `POST /api/orders/:id/ocr-payment` — Claude vision extrae datos del comprobante
+- `serializeOrders()` reemplaza paymentImageUrl por `hasPaymentImage: boolean` en listings
 
 #### Feature: Push notifications en desktop/MenuPage
-- Botón "🔔 Activar notificaciones de pedidos" en MenuPage
-- Solo aparece si: `Notification.permission === 'default'` + `yebrams_last_phone` en localStorage + browser soporta service workers
-- Solicita permiso, registra suscripción push con el último teléfono usado
+- Botón "🔔 Activar notificaciones" solo si permission=default y hay pedido previo
+
+### Fase 7 — Comunicación PWA↔Backend (sesión 2026-04-15) ✅
+
+#### Cambio 1 — Normalización teléfono en push subscriptions
+- `push-service.ts`: `normalizePhone()` convierte 04xx→584xx antes de buscar suscripción
+- `POST /api/push/subscribe`: guarda siempre en formato 584xx con `normalizeDriverPhone`
+- Cobertura doble: normalización en origen + en búsqueda
+
+#### Cambio 2 — Push en TODOS los cambios de status
+Todos los status ahora envían push con `url: /order/:id` para llevar al tracking:
+- `PAYMENT_CONFIRMED` → "✅ Pago confirmado, tu pedido está en cocina 👨‍🍳"
+- `PAYMENT_REJECTED` → "❌ Tu pago no fue verificado" (nuevo)
+- `IN_KITCHEN` → "👨‍🍳 Tu pedido está en cocina" con ETA (nuevo)
+- `READY` → "🍗 Tu pedido está listo"
+- `OUT_FOR_DELIVERY` → "🛵 Tu pedido va en camino"
+- `DELIVERED` → "✅ Entregado" → url /review/:id
+- `CANCELLED` → "❌ Pedido cancelado" (nuevo)
+
+#### Cambio 3 — Página de tracking /order/:orderId
+- Barra de progreso 5 fases: 📋 Recibido → ✅ Pago → 👨‍🍳 Cocina → 🛵 En camino → 🎉 Entregado
+- Fase activa: glow dorado. Fases completadas: verde. Pendientes: gris. Transición animada
+- Polling cada 10s a `GET /api/public/orders/:id/tracking`
+- `PAYMENT_REJECTED`: card roja con upload nuevo comprobante + botón cancelar pedido
+- `DELIVERED`: botón "⭐ Dejar reseña" + "Hacer otro pedido"
+- Al llegar a DELIVERED/CANCELLED: limpia localStorage + carrito
+- `ConfirmPage`: guarda `{ orderId, orderNumber, status, phone }` en localStorage
+- `ConfirmPage`: botón primario "📍 Seguir mi pedido" (CTA principal)
+- `App.tsx`: `ActiveOrderGuard` — al abrir `/`, si hay pedido activo no terminal, redirige a `/order/:id`
+- `App.tsx`: ruta `/order/:orderId` → `OrderTrackingPage`
+
+#### Cambio 4 — Endpoints backend para tracking
+- `GET /api/public/orders/:id/tracking` — todos los status permitidos, devuelve items/totales/dirección
+- `PATCH /api/public/orders/:id/payment-proof` — nuevo comprobante → PAYMENT_UPLOADED + socket + push admin
+- `DELETE /api/public/orders/:id` — cancela si PAYMENT_REJECTED/PENDING_PAYMENT/PAYMENT_UPLOADED + socket + push admin
 
 ## Próximos pasos recomendados
 
-1. [ ] Prueba end-to-end completa en producción (ver checklist abajo)
-2. [ ] Verificar OCR: subir comprobante real y probar extracción de datos
-3. [ ] Confirmar que `savedAddress` se rellena correctamente en segundo pedido
-4. [ ] Probar push notifications en desktop Chrome y Safari
+1. [ ] Prueba end-to-end completa en producción (ver checklist)
+2. [ ] Verificar que push llega al tocar notificación → abre /order/:id correctamente
+3. [ ] Verificar auto-redirect al abrir PWA con pedido activo en localStorage
+4. [ ] Probar PAYMENT_REJECTED: re-upload comprobante desde tracking page
 
 ## Checklist end-to-end
 
-1. [ ] Abrir PWA cliente, hacer pedido completo (delivery + pago móvil + foto comprobante)
-2. [ ] Admin recibe push con datos del pedido y comprobante
-3. [ ] Dashboard muestra botón "Ver comprobante 🧾" → imagen se abre → OCR extrae datos
-4. [ ] Admin confirma pago → cliente recibe push "Pago confirmado"
-5. [ ] Cocina marca READY → cliente recibe push "Pedido listo"
-6. [ ] Admin toca "Salió a domicilio" → modal QR aparece
-7. [ ] Motorizado escanea QR → ve DriverPage con datos correctos
-8. [ ] Motorizado toca "Confirmar Entrega" → cliente recibe push "Entregado" con link /review
-9. [ ] Cliente abre /review/:id → califica → aparece en dashboard > Reseñas
-10. [ ] Segundo pedido del mismo cliente: dirección guardada aparece en checkout
-11. [ ] Mensaje WhatsApp prellenado incluye todos los datos del pedido
-12. [ ] Botón 🔔 push aparece en MenuPage para usuarios que ya pidieron (desktop)
+1. [ ] Abrir PWA, hacer pedido completo con comprobante
+2. [ ] ConfirmPage muestra botón "📍 Seguir mi pedido" → abre tracking con fase 0
+3. [ ] Cerrar PWA, volver a abrir → redirige automáticamente a /order/:id
+4. [ ] Admin confirma pago → push llega → al tocar abre /order/:id en fase Pago/Cocina
+5. [ ] Dashboard muestra "Ver comprobante 🧾" → OCR extrae datos
+6. [ ] Cocina marca READY → push llega con url tracking
+7. [ ] Admin toca "Salió a domicilio" → QR modal → motorizado confirma
+8. [ ] Cliente recibe push "Entregado" → toca → abre /review/:id
+9. [ ] Tracking page detecta DELIVERED → limpia localStorage → carrito vacío
+10. [ ] Segundo pedido: dirección guardada aparece en checkout
+11. [ ] Simular PAYMENT_REJECTED → cliente ve card roja en tracking → sube nuevo comprobante
 
 ## Notas de deploy (Railway)
 
 - Migración `20260415000002_add_order_number` ya aplicada manualmente en Railway
-- Las migraciones siguientes se aplican automáticamente en el próximo deploy vía `prisma migrate deploy`
-- No requiere seed manual
+- DATABASE_URL Railway: `postgresql://postgres:HwiyNRSVYSAFcKqxCTUENuErFrnEladk@metro.proxy.rlwy.net:37303/railway`
+- Las migraciones siguientes se aplican automáticamente vía `prisma migrate deploy`
 
 ## Al iniciar próxima sesión leer en orden
 1. CLAUDE.md

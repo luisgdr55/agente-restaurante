@@ -1,5 +1,12 @@
 # Features Roadmap
 
+## ✅ IMPLEMENTADO — Comunicación PWA↔Backend completa (2026-04-15)
+- Push en todos los cambios de status con url de tracking
+- Página /order/:orderId con barra de progreso 5 fases + polling 10s
+- Auto-redirect al abrir PWA si hay pedido activo en localStorage
+- Re-upload comprobante desde tracking si pago rechazado
+- Normalización 04xx→584xx en todas las push subscriptions
+
 ## FEATURE 1 — Validación automática pago móvil
 Watchdog 90s que lee SMS/notificación bancaria.
 Si coincide monto+referencia → confirma auto.
