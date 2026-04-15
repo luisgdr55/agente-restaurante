@@ -55,6 +55,11 @@ export default function OrderCard({ order, onRefresh }: Props) {
   const [adHocPhone, setAdHocPhone] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
   const [sendingOut, setSendingOut] = useState(false);
+  const [proofOpen, setProofOpen] = useState(false);
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofLoading, setProofLoading] = useState(false);
+  const [ocrResult, setOcrResult] = useState<Record<string, string | null> | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   useEffect(() => {
     if (order.status === 'AWAITING_DRIVER_ASSIGNMENT') {
@@ -109,6 +114,29 @@ export default function OrderCard({ order, onRefresh }: Props) {
     }
   };
 
+  const openProof = async () => {
+    setProofOpen(true);
+    setOcrResult(null);
+    if (proofUrl) return; // already loaded
+    setProofLoading(true);
+    try {
+      const data = await ordersApi.getProof(order.id);
+      setProofUrl(data.paymentImageUrl);
+    } finally {
+      setProofLoading(false);
+    }
+  };
+
+  const runOcr = async () => {
+    setOcrLoading(true);
+    try {
+      const result = await ordersApi.runOcr(order.id);
+      setOcrResult(result);
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   const doSendOutForDelivery = async () => {
     setSendingOut(true);
     try {
@@ -151,6 +179,19 @@ export default function OrderCard({ order, onRefresh }: Props) {
         )}
         {order.paymentReference && <span> · Ref: {order.paymentReference}</span>}
       </div>
+
+      {/* Botón comprobante */}
+      {order.hasPaymentImage && (
+        <div className="mt-1">
+          <button
+            className="btn btn-sm btn-ghost"
+            style={{ fontSize: '0.75rem', color: '#3b82f6', width: '100%' }}
+            onClick={() => void openProof()}
+          >
+            Ver comprobante 🧾
+          </button>
+        </div>
+      )}
 
       {/* Ítems */}
       <div className="mt-1" style={{ borderTop: '1px solid var(--surface2)', paddingTop: '0.5rem' }}>
@@ -336,6 +377,76 @@ export default function OrderCard({ order, onRefresh }: Props) {
             </div>
             <button className="btn btn-sm btn-ghost" style={{ width: '100%' }}
               onClick={() => setQrOpen(false)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal comprobante + OCR */}
+      {proofOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '1rem', overflowY: 'auto',
+        }} onClick={() => setProofOpen(false)}>
+          <div style={{
+            background: 'var(--surface)', borderRadius: '16px', padding: '1.25rem',
+            maxWidth: 420, width: '100%',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.75rem' }}>
+              🧾 Comprobante — #{orderNum}
+            </div>
+
+            {proofLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text2)' }}>Cargando...</div>
+            ) : proofUrl ? (
+              <>
+                <img
+                  src={proofUrl}
+                  alt="Comprobante"
+                  style={{ width: '100%', borderRadius: '10px', marginBottom: '0.75rem', display: 'block' }}
+                />
+
+                <button
+                  className="btn btn-sm btn-primary"
+                  style={{ width: '100%', marginBottom: '0.5rem' }}
+                  disabled={ocrLoading}
+                  onClick={() => void runOcr()}
+                >
+                  {ocrLoading ? 'Extrayendo...' : '🔍 Extraer datos OCR'}
+                </button>
+
+                {ocrResult && (
+                  <div style={{
+                    background: 'var(--surface2)', borderRadius: '10px',
+                    padding: '0.75rem', marginBottom: '0.5rem', fontSize: '0.82rem',
+                  }}>
+                    {[
+                      ['Referencia', ocrResult.referencia],
+                      ['Fecha', ocrResult.fecha],
+                      ['Hora', ocrResult.hora],
+                      ['Monto', ocrResult.monto],
+                      ['Banco origen', ocrResult.bancoOrigen],
+                      ['Banco destino', ocrResult.bancoDestino],
+                      ['Titular', ocrResult.titular],
+                    ].map(([label, val]) => val ? (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                        <span style={{ color: 'var(--text2)' }}>{label}</span>
+                        <span style={{ fontWeight: 600, textAlign: 'right', maxWidth: '60%' }}>{val}</span>
+                      </div>
+                    ) : null)}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text2)' }}>
+                Sin imagen
+              </div>
+            )}
+
+            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }}
+              onClick={() => setProofOpen(false)}>
               Cerrar
             </button>
           </div>

@@ -122,6 +122,9 @@ export default function CheckoutPage() {
       sessionStorage.removeItem('yebrams_checkout_config')
       localStorage.removeItem('yebrams_cart')
 
+      // Save phone for push notification prompt on menu page
+      localStorage.setItem('yebrams_last_phone', phone.trim())
+
       navigate('/confirm', {
         state: {
           orderNumber: result.orderNumber,
@@ -132,6 +135,12 @@ export default function CheckoutPage() {
           total,
           rate,
           deliveryType,
+          address: deliveryType === 'DELIVERY' ? address.trim() : undefined,
+          cart: cart.map((i) => ({ name: i.name, quantity: i.quantity, priceUsd: i.priceUsd })),
+          pagoMovilBank: config?.PAGO_MOVIL_BANK ?? '',
+          pagoMovilPhone: config?.PAGO_MOVIL_PHONE ?? '',
+          pagoMovilHolder: config?.PAGO_MOVIL_HOLDER ?? '',
+          pagoMovilRif: config?.PAGO_MOVIL_RIF ?? '',
           vapidPublicKey: config?.vapidPublicKey ?? '',
         },
       })

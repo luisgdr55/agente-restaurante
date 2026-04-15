@@ -36,6 +36,7 @@ export interface Order {
   cancelReason?: string | null;
   driverId?: string | null;
   driverPhone?: string | null;
+  hasPaymentImage?: boolean;
   createdAt: string;
   customer: { name: string | null; phone: string };
   items: Array<{
@@ -73,6 +74,10 @@ export const ordersApi = {
     api.post<Order>(`/orders/${orderId}/assign-driver`, { driverId }).then(r => r.data),
   setOutForDelivery: (id: string) =>
     api.patch<Order>(`/orders/${id}/status`, { status: 'OUT_FOR_DELIVERY' }).then(r => r.data),
+  getProof: (id: string) =>
+    api.get<{ paymentImageUrl: string | null }>(`/orders/${id}/proof`).then(r => r.data),
+  runOcr: (id: string) =>
+    api.post<Record<string, string | null>>(`/orders/${id}/ocr-payment`).then(r => r.data),
 };
 
 export const driversApi = {

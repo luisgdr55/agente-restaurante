@@ -6,6 +6,16 @@ import Layout from '../components/Layout'
 import CartDrawer from '../components/CartDrawer'
 import ItemDetailSheet from '../components/ItemDetailSheet'
 import type { MenuItem } from '../api/api'
+import axios from 'axios'
+
+function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  const arr = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; i++) arr[i] = rawData.charCodeAt(i)
+  return arr.buffer
+}
 
 const HERO_BG = 'https://raw.githubusercontent.com/luisgdr55/agente-restaurante/master/public/menu-images/layebrams.jpg'
 
@@ -32,6 +42,8 @@ export default function MenuPage() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [touchedCard, setTouchedCard] = useState<string | null>(null)
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null)
+  const [notifLoading, setNotifLoading] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const { items, add, remove, clear, total, count } = useCart()
   const navigate = useNavigate()
@@ -45,7 +57,35 @@ export default function MenuPage() {
         if (menuData.length > 0) setActiveCategory(menuData[0].id)
       })
       .finally(() => setLoading(false))
+    // Check notification permission on mount
+    if ('Notification' in window) {
+      setNotifPermission(Notification.permission)
+    }
   }, [])
+
+  const handleEnableNotifications = async () => {
+    if (!config?.vapidPublicKey) return
+    const phone = localStorage.getItem('yebrams_last_phone')
+    if (!phone) return
+    setNotifLoading(true)
+    try {
+      const permission = await Notification.requestPermission()
+      setNotifPermission(permission)
+      if (permission !== 'granted') return
+      const reg = await navigator.serviceWorker.ready
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(config.vapidPublicKey),
+      })
+      const sub = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
+      await axios.post('/api/push/subscribe', { endpoint: sub.endpoint, keys: sub.keys, phone })
+      localStorage.setItem('yebrams_push_asked', '1')
+    } catch {
+      // Silently fail — non-critical
+    } finally {
+      setNotifLoading(false)
+    }
+  }
 
   const handleCheckout = () => {
     if (items.length === 0) return
@@ -373,6 +413,31 @@ export default function MenuPage() {
           )
         })}
       </div>
+
+      {/* ── Push notification prompt (desktop / users who skipped) ── */}
+      {notifPermission === 'default'
+        && config?.vapidPublicKey
+        && localStorage.getItem('yebrams_last_phone')
+        && 'serviceWorker' in navigator && (
+        <div style={{ textAlign: 'center', padding: '0.75rem 1rem 0' }}>
+          <button
+            onClick={() => void handleEnableNotifications()}
+            disabled={notifLoading}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              padding: '0.45rem 1rem',
+              border: '1px solid rgba(245,197,24,0.2)',
+              borderRadius: '999px',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              fontSize: '0.8rem',
+              opacity: notifLoading ? 0.6 : 1,
+            }}
+          >
+            🔔 {notifLoading ? 'Activando...' : 'Activar notificaciones de pedidos'}
+          </button>
+        </div>
+      )}
 
       {/* ── Developer credit footer ── */}
       <footer style={{

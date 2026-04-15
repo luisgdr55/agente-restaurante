@@ -12,6 +12,12 @@ interface ConfirmState {
   total: number
   rate: number
   deliveryType: 'DELIVERY' | 'PICKUP'
+  address?: string
+  cart: { name: string; quantity: number; priceUsd: number }[]
+  pagoMovilBank: string
+  pagoMovilPhone: string
+  pagoMovilHolder: string
+  pagoMovilRif: string
   vapidPublicKey: string
 }
 
@@ -35,14 +41,36 @@ export default function ConfirmPage() {
     return null
   }
 
-  const { orderNumber, adminPhone, customerName, phone, total, rate, deliveryType, vapidPublicKey } = state
+  const { orderNumber, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = state
 
   const totalBs = (total * rate).toFixed(2)
 
-  const waText = encodeURIComponent(
-    `Hola, soy ${customerName}. Acabo de hacer un pedido en la web. Mi número de pedido es #${orderNumber}. Total: $${total.toFixed(2)} | Bs ${totalBs}.`
-  )
-  const waLink = `https://wa.me/${adminPhone}?text=${waText}`
+  const itemLines = (cart ?? [])
+    .map((i) => `  • ${i.quantity}x ${i.name} — $${(i.priceUsd * i.quantity).toFixed(2)}`)
+    .join('\n')
+
+  const waMessage = [
+    `🛵 *Pedido #${orderNumber}*`,
+    `👤 Cliente: ${customerName}`,
+    `📱 Teléfono: ${phone}`,
+    ``,
+    `🧾 *Productos:*`,
+    itemLines,
+    ``,
+    `💰 *Total: $${total.toFixed(2)} | Bs ${totalBs}*`,
+    ``,
+    deliveryType === 'DELIVERY'
+      ? `📍 *Delivery a:* ${address ?? ''}`
+      : `🏪 *Pickup en local*`,
+    ``,
+    `📱 *Pago móvil realizado a:*`,
+    `  Banco: ${pagoMovilBank}`,
+    `  Teléfono: ${pagoMovilPhone}`,
+    `  Titular: ${pagoMovilHolder}`,
+    `  RIF/Cédula: ${pagoMovilRif}`,
+  ].join('\n')
+
+  const waLink = `https://wa.me/${adminPhone}?text=${encodeURIComponent(waMessage)}`
 
   return (
     <Layout>

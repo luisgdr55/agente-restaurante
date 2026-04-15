@@ -45,9 +45,18 @@ function getTokenRole(req: FastifyRequest): string | null {
 }
 
 export async function dashboardRoutes(app: FastifyInstance) {
+  // Strips paymentImageUrl (large base64) and replaces with hasPaymentImage boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function serializeOrders(orders: any[]) {
+    return orders.map(({ paymentImageUrl, ...o }) => ({
+      ...o,
+      hasPaymentImage: Boolean(paymentImageUrl),
+    }));
+  }
+
   // GET /api/orders — active orders (not DELIVERED/CANCELLED)
-  app.get('/api/orders', { preHandler: verifyJwt }, async (_req, _reply) => {
-    return prisma.order.findMany({
+  app.get('/api/orders', { preHandler: verifyJwt }, async (_req, reply) => {
+    const orders = await prisma.order.findMany({
       where: {
         status: { notIn: ['DELIVERED', 'CANCELLED'] },
       },
@@ -57,13 +66,14 @@ export async function dashboardRoutes(app: FastifyInstance) {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return reply.send(serializeOrders(orders));
   });
 
   // GET /api/orders/today — all orders from today (midnight)
-  app.get('/api/orders/today', { preHandler: verifyJwt }, async (_req, _reply) => {
+  app.get('/api/orders/today', { preHandler: verifyJwt }, async (_req, reply) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: { createdAt: { gte: today } },
       include: {
         customer: true,
@@ -71,6 +81,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return reply.send(serializeOrders(orders));
   });
 
   // GET /api/orders/kitchen — orders visible to kitchen (IN_KITCHEN + PAYMENT_CONFIRMED)
@@ -433,6 +444,79 @@ const adminPhone = await getConfig('ADMIN_PHONE');
       priceBs: parseFloat(i.priceUsd.toString()) * rate,
     })));
   });
+
+  // GET /api/orders/:id/proof — payment image (base64) on demand
+  app.get<{ Params: { id: string } }>(
+    '/api/orders/:id/proof',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: { paymentImageUrl: true },
+      });
+      if (!order) return reply.code(404).send({ error: 'Not found' });
+      return reply.send({ paymentImageUrl: order.paymentImageUrl ?? null });
+    }
+  );
+
+  // POST /api/orders/:id/ocr-payment — extract data from payment proof via LLM vision
+  app.post<{ Params: { id: string } }>(
+    '/api/orders/:id/ocr-payment',
+    { preHandler: verifyJwt },
+    async (req, reply) => {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: { paymentImageUrl: true },
+      });
+      if (!order?.paymentImageUrl) {
+        return reply.code(400).send({ error: 'No payment image for this order' });
+      }
+
+      // paymentImageUrl is stored as base64 data URL (data:image/...;base64,...)
+      const imageData = order.paymentImageUrl;
+      const isDataUrl = imageData.startsWith('data:');
+      const mimeType = isDataUrl
+        ? (imageData.match(/^data:([^;]+);/)?.[1] ?? 'image/jpeg')
+        : 'image/jpeg';
+      const base64 = isDataUrl ? imageData.split(',')[1] : imageData;
+
+      const OpenAI = (await import('openai')).default;
+      const client = new OpenAI({
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: env.OPENROUTER_API_KEY,
+      });
+
+      const response = await client.chat.completions.create({
+        model: 'anthropic/claude-sonnet-4-5',
+        max_tokens: 400,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${base64}` },
+              },
+              {
+                type: 'text',
+                text: 'Extrae de este comprobante de pago móvil venezolano: referencia, fecha, hora, monto, banco origen, banco destino, titular. Devuelve SOLO un JSON con las claves: referencia, fecha, hora, monto, bancoOrigen, bancoDestino, titular. Si no encuentras un campo, usa null.',
+              },
+            ],
+          },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content ?? '{}';
+      // Strip markdown fences if present
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      try {
+        const parsed = JSON.parse(cleaned) as Record<string, string | null>;
+        return reply.send(parsed);
+      } catch {
+        return reply.send({ raw: cleaned });
+      }
+    }
+  );
 
   // POST /api/orders/manual — create order from dashboard
   interface ManualOrderBody {
