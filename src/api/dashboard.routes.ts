@@ -651,6 +651,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
     async (req, reply) => {
       const { id } = req.params;
       try {
+        logger.info({ body: req.body }, 'PATCH menu item body');
         const updated = await prisma.menuItem.update({
           where: { id },
           data: req.body as never,
