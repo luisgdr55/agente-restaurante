@@ -172,62 +172,55 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               const etaMinutes = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
               await whatsappClient.sendMessage(TEMPLATES.paymentConfirmed(customerPhone, cartSummary));
               await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaMinutes));
-              void sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 🍳');
+              void sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 👨‍🍳', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pago confirmado\n*#${fId}* · ${customerName}\nPedido en cocina 🍳`));
               break;
             }
             case 'PAYMENT_REJECTED':
               await whatsappClient.sendMessage(TEMPLATES.paymentRejected(customerPhone, reason));
+              void sendPushToPhone(customerPhone, '❌ Pago no verificado', 'Tu pago no fue verificado. Toca para ver opciones', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `❌ *Dashboard* — Pago rechazado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
               break;
             case 'IN_KITCHEN': {
               const etaKitchen = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
               await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaKitchen));
+              void sendPushToPhone(customerPhone, '👨‍🍳 Tu pedido está en cocina', `Listo en aprox. ${etaKitchen} min`, `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `🍳 *Dashboard* — Enviado a cocina\n*#${fId}* · ${customerName}`));
               break;
             }
             case 'READY':
               if (order.deliveryType === 'DELIVERY') {
-                // DELIVERY → notificar al cliente que está listo y va en camino pronto
                 await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'DELIVERY'));
-                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Tu pedido está listo, sale en camino pronto 🛵');
+                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Tu pedido está listo, sale en camino pronto 🛵', `/order/${order.id}`);
                 if (adminPhone) await whatsappClient.sendMessage(
-                  textMessage(
-                    adminPhone,
-                    `🍗 *Cocina* — Pedido listo\n*#${fId}* · ${customerName}\n\nMarca "Salió a domicilio" desde el dashboard para generar el QR del motorizado.`,
-                  ),
+                  textMessage(adminPhone,
+                    `🍗 *Cocina* — Pedido listo\n*#${fId}* · ${customerName}\n\nMarca "Salió a domicilio" desde el dashboard para generar el QR del motorizado.`),
                 );
               } else {
-                // PICKUP → notificar al cliente inmediatamente
-                await whatsappClient.sendMessage(
-                  TEMPLATES.orderReady(customerPhone, 'PICKUP'),
-                );
-                void sendPushToPhone(customerPhone, '🎉 Pedido listo', 'Ya puedes pasar a buscarlo 🏃');
+                await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'PICKUP'));
+                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Ya puedes pasar a buscarlo 🏃', `/order/${order.id}`);
                 if (adminPhone) await whatsappClient.sendMessage(
-                  buttonMessage(
-                    adminPhone,
+                  buttonMessage(adminPhone,
                     `🎉 *Cocina* — Pedido listo\n*#${fId}* · ${customerName} · PICKUP\n\n_Toca cuando lo entregues:_`,
-                    [{ id: `order_delivered:${order.id}`, title: '✅ Entregado' }],
-                  ),
+                    [{ id: `order_delivered:${order.id}`, title: '✅ Entregado' }]),
                 );
               }
               break;
             case 'OUT_FOR_DELIVERY':
-              void sendPushToPhone(customerPhone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
+              void sendPushToPhone(customerPhone, '🛵 Tu pedido va en camino', 'Tu pedido salió a tu dirección 🏠', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `🛵 *Dashboard* — Salió a domicilio\n*#${fId}* · ${customerName}`));
               break;
             case 'DELIVERED':
-              void sendPushToPhone(customerPhone, '✅ Entregado', '¡Tu pedido llegó! ¿Cómo estuvo? 🙏', `/review/${order.id}`);
+              void sendPushToPhone(customerPhone, '✅ Entregado', 'Toca para dejarnos tu reseña ⭐', `/review/${order.id}`);
               await sendDeliveryNotifications(customerPhone, order.id);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pedido entregado\n*#${fId}* · ${customerName}`));
               break;
             case 'AWAITING_DRIVER_ASSIGNMENT':
-              // Notificar al cliente cuando se marca manualmente desde dashboard
               await whatsappClient.sendMessage(TEMPLATES.orderAwaitingDriver(customerPhone));
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `🛵 *Dashboard* — Asignar motorizado\n*#${fId}* · ${customerName}`));
@@ -236,6 +229,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               await whatsappClient.sendMessage(
                 textMessage(customerPhone, `❌ Tu pedido #${fId} fue cancelado.${reason ? `\n_Motivo: ${reason}_` : ''}\n\nDisculpa las molestias 🙏`),
               );
+              void sendPushToPhone(customerPhone, '❌ Pedido cancelado', `Tu pedido #${fId} fue cancelado`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `❌ *Dashboard* — Pedido cancelado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
               break;
