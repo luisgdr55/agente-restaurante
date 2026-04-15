@@ -1578,9 +1578,11 @@ const adminPhone = await getConfig('ADMIN_PHONE');
   }>('/api/push/subscribe', async (req, reply) => {
     const { endpoint, keys, phone } = req.body;
 
+    const normalizedPhone = phone ? normalizeDriverPhone(phone.trim()) : undefined;
+
     let customerId: string | undefined;
-    if (phone) {
-      const customer = await prisma.customer.findUnique({ where: { phone } });
+    if (normalizedPhone) {
+      const customer = await prisma.customer.findUnique({ where: { phone: normalizedPhone } });
       if (customer) customerId = customer.id;
     }
 
@@ -1590,13 +1592,13 @@ const adminPhone = await getConfig('ADMIN_PHONE');
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
-        ...(phone && { phone }),
+        ...(normalizedPhone && { phone: normalizedPhone }),
         ...(customerId && { customerId }),
       },
       update: {
         p256dh: keys.p256dh,
         auth: keys.auth,
-        ...(phone && { phone }),
+        ...(normalizedPhone && { phone: normalizedPhone }),
         ...(customerId && { customerId }),
       },
     });
