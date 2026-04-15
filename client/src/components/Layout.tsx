@@ -34,7 +34,8 @@ export default function Layout({ children, cartCount = 0, onCartClick }: LayoutP
               alt="Yebram's"
               onError={() => setLogoError(true)}
               style={{
-                width: 36, height: 36, borderRadius: '50%',
+                height: 36, width: 'auto', maxWidth: 36,
+                borderRadius: '50%',
                 objectFit: 'contain',
                 background: '#2A2A2A',
                 flexShrink: 0,
