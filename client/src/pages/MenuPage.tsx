@@ -30,6 +30,8 @@ export default function MenuPage() {
   const [cartOpen, setCartOpen] = useState(false)
   const [heroError, setHeroError] = useState(false)
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null)
+  const [touchedCard, setTouchedCard] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { items, add, remove, total, count } = useCart()
   const navigate = useNavigate()
@@ -121,14 +123,15 @@ export default function MenuPage() {
           ? 'linear-gradient(160deg, #1A1A1A 0%, #2A2A2A 60%, #1A1A1A 100%)'
           : undefined,
       }}>
-        {/* Background image */}
+        {/* Background image — <img> tag, no CSS background-image */}
         {!heroError && (
           <img
             src={HERO_BG}
             alt=""
             aria-hidden="true"
+            onLoad={() => console.log('[hero] imagen cargada OK:', HERO_BG)}
             onError={() => {
-              console.warn('[Yebram\'s] Hero image failed to load:', HERO_BG)
+              console.warn('[hero] imagen FALLÓ, activando fallback. URL:', HERO_BG)
               setHeroError(true)
             }}
             style={{
@@ -136,6 +139,7 @@ export default function MenuPage() {
               width: '100%', height: '100%',
               objectFit: 'cover',
               objectPosition: 'center top',
+              display: 'block',
             }}
           />
         )}
@@ -172,20 +176,6 @@ export default function MenuPage() {
           }}>
             Tu menú super crujiente
           </p>
-
-          {/* Delivery badge */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-            background: 'rgba(0,0,0,0.5)',
-            border: '1px solid rgba(245,197,24,0.5)',
-            borderRadius: 20,
-            padding: '0.35rem 0.9rem',
-            fontSize: '0.8rem', color: '#F5C518', fontWeight: 600,
-            marginBottom: '2.25rem',
-            backdropFilter: 'blur(4px)',
-          }}>
-            🛵 Delivery ${deliveryFeeUsd.toFixed(2)} | Bs {(deliveryFeeUsd * rate).toFixed(2)}
-          </div>
 
           <div>
             <button
@@ -271,23 +261,34 @@ export default function MenuPage() {
           const inCart = items.find((i) => i.id === item.id)
           const priceUsd = parseFloat(item.priceUsd)
           const hasImage = Boolean(item.imageUrl && item.imageUrl.trim() !== '')
+          const isNeon = hoveredCard === item.id || touchedCard === item.id
 
           return (
             <div
               key={item.id}
               onClick={() => setSelectedItem(item)}
+              onMouseEnter={() => setHoveredCard(item.id)}
+              onMouseLeave={() => setHoveredCard(null)}
+              onTouchStart={() => {
+                setTouchedCard(item.id)
+                setTimeout(() => setTouchedCard(null), 350)
+              }}
               style={{
                 background: 'var(--surface)',
                 borderRadius: 14,
                 overflow: 'hidden',
                 display: 'flex', flexDirection: 'column',
-                border: inCart
-                  ? '1.5px solid rgba(245,197,24,0.7)'
-                  : '1.5px solid rgba(255,255,255,0.05)',
-                transition: 'border 0.15s, box-shadow 0.15s',
-                boxShadow: inCart
-                  ? '0 0 16px rgba(245,197,24,0.12)'
-                  : '0 2px 8px rgba(0,0,0,0.3)',
+                border: isNeon
+                  ? '1px solid #F5C518'
+                  : inCart
+                    ? '1.5px solid rgba(245,197,24,0.7)'
+                    : '1.5px solid rgba(255,255,255,0.05)',
+                transition: 'border 0.2s, box-shadow 0.2s',
+                boxShadow: isNeon
+                  ? '0 0 8px #F5C518, 0 0 20px rgba(245,197,24,0.4)'
+                  : inCart
+                    ? '0 0 16px rgba(245,197,24,0.12)'
+                    : '0 2px 8px rgba(0,0,0,0.3)',
                 cursor: 'pointer',
               }}
             >
