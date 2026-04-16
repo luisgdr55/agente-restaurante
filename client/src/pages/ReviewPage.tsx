@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { clearActiveOrder } from './OrderTrackingPage'
 
 type PageState = 'loading' | 'ready' | 'submitting' | 'done' | 'already_done' | 'not_available' | 'error'
 
@@ -8,6 +9,7 @@ const STAR_COLORS = ['', '#ef4444', '#f97316', '#f59e0b', '#22c55e', '#10b981']
 
 export default function ReviewPage() {
   const { orderId } = useParams<{ orderId: string }>()
+  const navigate = useNavigate()
   const [pageState, setPageState] = useState<PageState>('loading')
   const [orderNumber, setOrderNumber] = useState<number | null>(null)
   const [rating, setRating] = useState(0)
@@ -53,7 +55,10 @@ export default function ReviewPage() {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Error al enviar reseña')
       }
+      clearActiveOrder()
+      localStorage.removeItem('yebrams_cart')
       setPageState('done')
+      setTimeout(() => navigate('/', { replace: true }), 2000)
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error desconocido')
       setPageState('error')

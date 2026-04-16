@@ -31,6 +31,14 @@ Tiempo estimado según carga actual de cocina
 ## FEATURE 6 — Analytics por cliente
 Frecuencia, ticket promedio, ítems favoritos.
 
+## FEATURE 8 — Saludo personalizado en hero PWA
+Debajo del eslogan "TU MENÚ SUPER CRUJIENTE", si el cliente
+es recurrente (tiene pedidos previos en BD), mostrar en cursiva
+dorada un saludo generado por LLM con su nombre e ítem favorito.
+Ejemplo: "¿Otra vez por tu Yebram's+Papas, Pedro? 😏"
+LLM recibe: nombre, últimos 3 pedidos, ítem más pedido.
+Se carga via GET /api/public/greeting/:phone (con cache Redis 1h).
+
 ## FEATURE 7 — Multi-pedido por motorizado
 Un motorizado puede llevar varios pedidos simultáneos.
 El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"

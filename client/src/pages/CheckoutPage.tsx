@@ -41,9 +41,9 @@ export default function CheckoutPage() {
   const rate = parseFloat(config?.USD_TO_BS_RATE ?? '36.50')
   const deliveryFeeUsd = parseFloat(config?.DELIVERY_FEE_USD ?? '1.50')
 
-  // Form state
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  // Form state — pre-filled from localStorage if returning customer
+  const [name, setName] = useState(() => localStorage.getItem('yebrams_customer_name') ?? '')
+  const [phone, setPhone] = useState(() => localStorage.getItem('yebrams_customer_phone') ?? '')
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
   const [address, setAddress] = useState('')
   const [savedAddr, setSavedAddr] = useState<string | null>(null)
@@ -122,8 +122,10 @@ export default function CheckoutPage() {
       sessionStorage.removeItem('yebrams_checkout_config')
       localStorage.removeItem('yebrams_cart')
 
-      // Save phone for push notification prompt on menu page
+      // Persist customer data for next order
       localStorage.setItem('yebrams_last_phone', phone.trim())
+      localStorage.setItem('yebrams_customer_name', name.trim())
+      localStorage.setItem('yebrams_customer_phone', phone.trim())
 
       navigate('/confirm', {
         state: {
