@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { io } from 'socket.io-client'
 import Layout from '../components/Layout'
+
+// Backend URL for socket.io (direct WS, bypasses nginx — WebSocket doesn't use CORS)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -190,6 +194,23 @@ export default function OrderTrackingPage() {
       if (pollingRef.current) clearInterval(pollingRef.current)
     }
   }, [order])
+
+  // Real-time updates via socket.io (instant, polling stays as fallback)
+  useEffect(() => {
+    if (!orderId) return
+    const socket = io(BACKEND_URL, {
+      path: '/ws',
+      transports: ['websocket'],  // force WS — avoids CORS issues with HTTP polling
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+    })
+    socket.on('order:updated', ({ order: updated }: { order: { id: string } }) => {
+      if (updated.id === orderId) void fetchOrder()
+    })
+    return () => { socket.disconnect() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

@@ -48,10 +48,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // Strips paymentImageUrl (large base64) and replaces with hasPaymentImage boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function serializeOrders(orders: any[]) {
-    return orders.map(({ paymentImageUrl, ...o }) => ({
-      ...o,
-      hasPaymentImage: Boolean(paymentImageUrl),
-    }));
+    return orders.map(({ paymentImageUrl, ...o }) => {
+      const hasPaymentImage = Boolean(paymentImageUrl);
+      logger.debug({ orderId: o.id, hasPaymentImage, urlPrefix: paymentImageUrl?.substring(0, 20) }, '[proof] serializeOrders');
+      return { ...o, hasPaymentImage };
+    });
   }
 
   // GET /api/orders — active orders (not DELIVERED/CANCELLED)
