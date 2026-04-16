@@ -45,7 +45,7 @@ export default function CheckoutPage() {
   const [name, setName] = useState(() => localStorage.getItem('yebrams_customer_name') ?? '')
   const [phone, setPhone] = useState(() => localStorage.getItem('yebrams_customer_phone') ?? '')
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(() => localStorage.getItem('yebrams_customer_address') ?? '')
   const [savedAddr, setSavedAddr] = useState<string | null>(null)
   const [useSaved, setUseSaved] = useState(false)
   const [proofFile, setProofFile] = useState<File | null>(null)
@@ -126,6 +126,9 @@ export default function CheckoutPage() {
       localStorage.setItem('yebrams_last_phone', phone.trim())
       localStorage.setItem('yebrams_customer_name', name.trim())
       localStorage.setItem('yebrams_customer_phone', phone.trim())
+      if (deliveryType === 'DELIVERY' && address.trim()) {
+        localStorage.setItem('yebrams_customer_address', address.trim())
+      }
 
       navigate('/confirm', {
         state: {
