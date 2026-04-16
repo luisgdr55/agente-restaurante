@@ -39,6 +39,13 @@ Ejemplo: "¿Otra vez por tu Yebram's+Papas, Pedro? 😏"
 LLM recibe: nombre, últimos 3 pedidos, ítem más pedido.
 Se carga via GET /api/public/greeting/:phone (con cache Redis 1h).
 
+## FEATURE 9 — Ubicación GPS del cliente
+El cliente puede compartir su ubicación en Checkout.
+Las coordenadas se guardan en la orden.
+El dashboard muestra link a Google Maps.
+El QR del motorizado incluye maps.google.com/?q={lat},{lng}
+para navegación directa.
+
 ## FEATURE 7 — Multi-pedido por motorizado
 Un motorizado puede llevar varios pedidos simultáneos.
 El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"
