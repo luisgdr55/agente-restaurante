@@ -23,6 +23,7 @@ export interface CreateOrderInput {
   discountUsd?: number;
   promotionId?: string;
   deliveryFeeUsd?: number; // incluido en totalUsd/totalBs si es DELIVERY
+  paymentImageUrl?: string; // base64 data URL del comprobante de pago
 }
 
 export interface OrderSummary {
@@ -61,6 +62,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       ...(input.notes !== undefined && { notes: input.notes }),
       ...(discountUsd > 0 && { discountUsd: discountUsd.toString(), discountBs: discountBs.toString() }),
       ...(input.promotionId !== undefined && { promotionId: input.promotionId }),
+      ...(input.paymentImageUrl !== undefined && { paymentImageUrl: input.paymentImageUrl }),
       items: {
         create: input.cart.map((item) => ({
           menuItemId: item.menuItemId,
