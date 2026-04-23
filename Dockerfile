@@ -12,7 +12,8 @@ RUN npm ci --frozen-lockfile
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate
+RUN ls -la prisma/ || echo "PRISMA DIR NOT FOUND"
+RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
 # ── Production ────────────────────────────────────────────────────────────────
