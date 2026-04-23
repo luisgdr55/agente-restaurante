@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-16
+Última actualización: 2026-04-23
 
 ## Infraestructura deployada
 | Servicio | URL | Estado |
@@ -141,19 +141,30 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 #### UX: redirect post-reseña
 - Después de enviar reseña exitosa → limpia `yebrams_active_order` + `yebrams_cart` → muestra agradecimiento 2s → redirige a `/`
 
+## Sesión 2026-04-23 — Limpieza código muerto + fixes Dockerfile
+
+### Limpieza dashboard.routes.ts ✅
+- Eliminado todo el código muerto de WhatsApp API: `whatsappClient`, `TEMPLATES`,
+  `textMessage`, `buttonMessage`, `sendDeliveryNotifications`, `buildCartSummary`
+- Push notifications quedan como único canal de notificación desde el dashboard
+- `prisma` movido de `devDependencies` a `dependencies` en package.json
+
+### Dockerfile — estado final ✅
+- Restaurado al Dockerfile original del initial commit (el que funcionaba)
+- `COPY . .` en builder + `npx prisma generate`
+- `COPY prisma ./prisma` en production (del build context)
+- `.dockerignore` agregado (node_modules, dist, .env, etc. — no excluye prisma/)
+
 ## Pendientes próxima sesión
 
-- [ ] Push notifications: no llegan al cliente en PAYMENT_CONFIRMED
-      ni IN_KITCHEN — revisar que esos status están disparando
-      sendPushToPhone correctamente
 - [ ] Dashboard: botón "Ver comprobante" aparece solo después de F5
       — el socket orderUpdated no está actualizando hasPaymentImage
       en el estado local de React
 - [ ] Menú: agregar categoría "Bebidas" con imagen del menú visual
       (el usuario la enviará en la próxima sesión)
-- [ ] Autocompletado nombre/teléfono/dirección en Checkout no funciona
-      — verificar claves localStorage y que se guardan al confirmar pedido
 - [ ] Feature 9 GPS pendiente de implementar
+- [ ] Verificar en Railway que el backend deploya correctamente con
+      el Dockerfile restaurado
 
 ## Notas de deploy (Railway)
 

@@ -12,7 +12,7 @@ RUN npm ci --frozen-lockfile
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN node_modules/.bin/prisma generate
+RUN npx prisma generate
 RUN npm run build
 
 # ── Production ────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ RUN npm ci --frozen-lockfile --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/prisma ./prisma
+COPY prisma ./prisma
 
 # Create uploads directory
 RUN mkdir -p /app/uploads
@@ -39,4 +39,4 @@ USER appuser
 EXPOSE 3000
 
 # Run migrations then start app
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
