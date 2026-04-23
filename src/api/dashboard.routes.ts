@@ -165,7 +165,47 @@ export async function dashboardRoutes(app: FastifyInstance) {
 const adminPhone = await getConfig('ADMIN_PHONE');
         const fId = String(order.orderNumber).padStart(4, '0');
 
-        // ── WhatsApp notifications (awaited so errors surface in logs) ──
+        // ── Push notifications — always fire, independent of WhatsApp ──
+        try {
+          switch (status) {
+            case 'PAYMENT_CONFIRMED':
+              logger.info({ orderId: id, customerPhone }, '[push] firing PAYMENT_CONFIRMED');
+              await sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 👨‍🍳', `/order/${order.id}`);
+              break;
+            case 'PAYMENT_REJECTED':
+              logger.info({ orderId: id, customerPhone }, '[push] firing PAYMENT_REJECTED');
+              await sendPushToPhone(customerPhone, '❌ Pago no verificado', 'Tu pago no fue verificado. Toca para ver opciones', `/order/${order.id}`);
+              break;
+            case 'IN_KITCHEN': {
+              const etaPush = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
+              logger.info({ orderId: id, customerPhone, etaPush }, '[push] firing IN_KITCHEN');
+              await sendPushToPhone(customerPhone, '👨‍🍳 Tu pedido está en cocina', `Listo en aprox. ${etaPush} min`, `/order/${order.id}`);
+              break;
+            }
+            case 'READY':
+              logger.info({ orderId: id, customerPhone }, '[push] firing READY');
+              await sendPushToPhone(customerPhone, '🍗 Pedido listo',
+                order.deliveryType === 'DELIVERY' ? 'Tu pedido está listo, sale en camino pronto 🛵' : 'Ya puedes pasar a buscarlo 🏃',
+                `/order/${order.id}`);
+              break;
+            case 'OUT_FOR_DELIVERY':
+              logger.info({ orderId: id, customerPhone }, '[push] firing OUT_FOR_DELIVERY');
+              await sendPushToPhone(customerPhone, '🛵 Tu pedido va en camino', 'Tu pedido salió a tu dirección 🏠', `/order/${order.id}`);
+              break;
+            case 'DELIVERED':
+              logger.info({ orderId: id, customerPhone }, '[push] firing DELIVERED');
+              await sendPushToPhone(customerPhone, '✅ Entregado', 'Toca para dejarnos tu reseña ⭐', `/review/${order.id}`);
+              break;
+            case 'CANCELLED':
+              logger.info({ orderId: id, customerPhone }, '[push] firing CANCELLED');
+              await sendPushToPhone(customerPhone, '❌ Pedido cancelado', `Tu pedido #${fId} fue cancelado`);
+              break;
+          }
+        } catch (err) {
+          logger.error({ err, orderId: id, status, customerPhone }, '[push] sendPushToPhone failed');
+        }
+
+        // ── WhatsApp notifications ──────────────────────────────────────
         try {
           switch (status) {
             case 'PAYMENT_CONFIRMED': {
@@ -173,21 +213,18 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               const etaMinutes = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
               await whatsappClient.sendMessage(TEMPLATES.paymentConfirmed(customerPhone, cartSummary));
               await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaMinutes));
-              void sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 👨‍🍳', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pago confirmado\n*#${fId}* · ${customerName}\nPedido en cocina 🍳`));
               break;
             }
             case 'PAYMENT_REJECTED':
               await whatsappClient.sendMessage(TEMPLATES.paymentRejected(customerPhone, reason));
-              void sendPushToPhone(customerPhone, '❌ Pago no verificado', 'Tu pago no fue verificado. Toca para ver opciones', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `❌ *Dashboard* — Pago rechazado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
               break;
             case 'IN_KITCHEN': {
               const etaKitchen = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
               await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaKitchen));
-              void sendPushToPhone(customerPhone, '👨‍🍳 Tu pedido está en cocina', `Listo en aprox. ${etaKitchen} min`, `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `🍳 *Dashboard* — Enviado a cocina\n*#${fId}* · ${customerName}`));
               break;
@@ -195,14 +232,12 @@ const adminPhone = await getConfig('ADMIN_PHONE');
             case 'READY':
               if (order.deliveryType === 'DELIVERY') {
                 await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'DELIVERY'));
-                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Tu pedido está listo, sale en camino pronto 🛵', `/order/${order.id}`);
                 if (adminPhone) await whatsappClient.sendMessage(
                   textMessage(adminPhone,
                     `🍗 *Cocina* — Pedido listo\n*#${fId}* · ${customerName}\n\nMarca "Salió a domicilio" desde el dashboard para generar el QR del motorizado.`),
                 );
               } else {
                 await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'PICKUP'));
-                void sendPushToPhone(customerPhone, '🍗 Pedido listo', 'Ya puedes pasar a buscarlo 🏃', `/order/${order.id}`);
                 if (adminPhone) await whatsappClient.sendMessage(
                   buttonMessage(adminPhone,
                     `🎉 *Cocina* — Pedido listo\n*#${fId}* · ${customerName} · PICKUP\n\n_Toca cuando lo entregues:_`,
@@ -211,12 +246,10 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               }
               break;
             case 'OUT_FOR_DELIVERY':
-              void sendPushToPhone(customerPhone, '🛵 Tu pedido va en camino', 'Tu pedido salió a tu dirección 🏠', `/order/${order.id}`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `🛵 *Dashboard* — Salió a domicilio\n*#${fId}* · ${customerName}`));
               break;
             case 'DELIVERED':
-              void sendPushToPhone(customerPhone, '✅ Entregado', 'Toca para dejarnos tu reseña ⭐', `/review/${order.id}`);
               await sendDeliveryNotifications(customerPhone, order.id);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `✅ *Dashboard* — Pedido entregado\n*#${fId}* · ${customerName}`));
@@ -230,7 +263,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
               await whatsappClient.sendMessage(
                 textMessage(customerPhone, `❌ Tu pedido #${fId} fue cancelado.${reason ? `\n_Motivo: ${reason}_` : ''}\n\nDisculpa las molestias 🙏`),
               );
-              void sendPushToPhone(customerPhone, '❌ Pedido cancelado', `Tu pedido #${fId} fue cancelado`);
               if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
                 `❌ *Dashboard* — Pedido cancelado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
               break;
