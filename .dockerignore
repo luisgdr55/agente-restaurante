@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.test
+.env.local
+*.log
+coverage/
+uploads/
+dashboard/node_modules/
+dashboard/dist/
+.DS_Store
+.git/
