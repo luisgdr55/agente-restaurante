@@ -5,15 +5,12 @@ import jwt from 'jsonwebtoken';
 import { emitOrderUpdated, emitStatsUpdated } from '../websocket/socket-server';
 import { getTopCustomers, getCustomerStats } from '../customers/customer-stats';
 import { invalidateConfigCache, invalidateMenuCache, getConfig } from '../menu/config-service';
-import { buildCartSummary, createOrder, updateOrderStatus, emitTodayStats } from '../orders/order-service';
+import { createOrder, updateOrderStatus, emitTodayStats } from '../orders/order-service';
 import { sendPushToPhone } from '../notifications/push-service';
-import { sendDeliveryNotifications } from '../agent/handlers/order-delivered.helper';
 import {
   getDayPromos, addDayPromo, updateDayPromo, removeDayPromo, clearDayPromos,
   getPromoDays, setPromoDays,
 } from '../menu/promo-day-service';
-import { whatsappClient } from '../whatsapp/client';
-import { TEMPLATES, textMessage, buttonMessage } from '../whatsapp/message-builder';
 import { getSession, updateSessionState } from '../redis/session-manager';
 import { logger } from '../utils/logger';
 
@@ -159,10 +156,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         });
         emitOrderUpdated(order);
 
-        // ── Notificar al cliente y al admin por WhatsApp ─────────────────
         const customerPhone = order.customer.phone;
-        const customerName = order.customer.name ?? customerPhone;
-const adminPhone = await getConfig('ADMIN_PHONE');
         const fId = String(order.orderNumber).padStart(4, '0');
 
         // ── Push notifications — always fire, independent of WhatsApp ──
@@ -205,72 +199,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
           logger.error({ err, orderId: id, status, customerPhone }, '[push] sendPushToPhone failed');
         }
 
-        // ── WhatsApp notifications ──────────────────────────────────────
-        try {
-          switch (status) {
-            case 'PAYMENT_CONFIRMED': {
-              const cartSummary = buildCartSummary(order.items);
-              const etaMinutes = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
-              await whatsappClient.sendMessage(TEMPLATES.paymentConfirmed(customerPhone, cartSummary));
-              await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaMinutes));
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `✅ *Dashboard* — Pago confirmado\n*#${fId}* · ${customerName}\nPedido en cocina 🍳`));
-              break;
-            }
-            case 'PAYMENT_REJECTED':
-              await whatsappClient.sendMessage(TEMPLATES.paymentRejected(customerPhone, reason));
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `❌ *Dashboard* — Pago rechazado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
-              break;
-            case 'IN_KITCHEN': {
-              const etaKitchen = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
-              await whatsappClient.sendMessage(TEMPLATES.orderInKitchen(customerPhone, fId, etaKitchen));
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `🍳 *Dashboard* — Enviado a cocina\n*#${fId}* · ${customerName}`));
-              break;
-            }
-            case 'READY':
-              if (order.deliveryType === 'DELIVERY') {
-                await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'DELIVERY'));
-                if (adminPhone) await whatsappClient.sendMessage(
-                  textMessage(adminPhone,
-                    `🍗 *Cocina* — Pedido listo\n*#${fId}* · ${customerName}\n\nMarca "Salió a domicilio" desde el dashboard para generar el QR del motorizado.`),
-                );
-              } else {
-                await whatsappClient.sendMessage(TEMPLATES.orderReady(customerPhone, 'PICKUP'));
-                if (adminPhone) await whatsappClient.sendMessage(
-                  buttonMessage(adminPhone,
-                    `🎉 *Cocina* — Pedido listo\n*#${fId}* · ${customerName} · PICKUP\n\n_Toca cuando lo entregues:_`,
-                    [{ id: `order_delivered:${order.id}`, title: '✅ Entregado' }]),
-                );
-              }
-              break;
-            case 'OUT_FOR_DELIVERY':
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `🛵 *Dashboard* — Salió a domicilio\n*#${fId}* · ${customerName}`));
-              break;
-            case 'DELIVERED':
-              await sendDeliveryNotifications(customerPhone, order.id);
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `✅ *Dashboard* — Pedido entregado\n*#${fId}* · ${customerName}`));
-              break;
-            case 'AWAITING_DRIVER_ASSIGNMENT':
-              await whatsappClient.sendMessage(TEMPLATES.orderAwaitingDriver(customerPhone));
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `🛵 *Dashboard* — Asignar motorizado\n*#${fId}* · ${customerName}`));
-              break;
-            case 'CANCELLED':
-              await whatsappClient.sendMessage(
-                textMessage(customerPhone, `❌ Tu pedido #${fId} fue cancelado.${reason ? `\n_Motivo: ${reason}_` : ''}\n\nDisculpa las molestias 🙏`),
-              );
-              if (adminPhone) await whatsappClient.sendMessage(textMessage(adminPhone,
-                `❌ *Dashboard* — Pedido cancelado\n*#${fId}* · ${customerName}${reason ? `\n_Motivo: ${reason}_` : ''}`));
-              break;
-          }
-        } catch (err) {
-          logger.error({ err, orderId: id, status }, 'WhatsApp notification failed from dashboard');
-        }
-
         // ── Sincronizar sesión Redis del cliente ─────────────────────────
         void (async () => {
           try {
@@ -294,7 +222,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
                     activeOrderId: order.id,
                   });
                   break;
-                // DELIVERED: sesión ya gestionada por sendDeliveryNotifications
                 case 'PAYMENT_REJECTED':
                   await updateSessionState(customerPhone, 'AWAITING_PAYMENT_PROOF', {
                     customerId: customerSession.customerId,
@@ -417,31 +344,7 @@ const adminPhone = await getConfig('ADMIN_PHONE');
         const { assignDriver } = await import('../orders/order-service');
         const result = await assignDriver(orderId, driverId);
 
-        // Mensaje A — al cliente (WhatsApp + push)
-        await whatsappClient.sendMessage(
-          TEMPLATES.orderOutForDelivery(
-            result.customerPhone,
-            result.driverName,
-            result.driverPhone,
-            result.deliveryAddress,
-          ),
-        );
-        void sendPushToPhone(result.customerPhone, '🛵 En camino', 'Tu pedido va en camino a tu dirección');
-
-        // Mensaje B — al motorizado
-        const refLine = result.deliveryReference
-          ? `🏠 Referencia: ${result.deliveryReference}\n`
-          : '';
-
-        const driverBody = result.isFirstContactToday
-          ? `Hola ${result.driverName}, soy el sistema de pedidos de *${result.restaurantName}*. Te enviamos los datos de tu próximo delivery.\n\n📦 *DELIVERY - ${result.restaurantName}*\n─────────────────────\n👤 Cliente: ${result.customerName}\n📱 Teléfono: ${result.customerPhone}\n📍 Dirección: ${result.deliveryAddress}\n${refLine}─────────────────────\n¿Algún problema? Llama al restaurante:\n${result.adminPhone ?? 'N/A'}\n\n_Cuando entregues responde ENTREGADO o presiona el botón 👇_`
-          : `📦 *DELIVERY - ${result.restaurantName}*\n─────────────────────\n👤 Cliente: ${result.customerName}\n📱 Teléfono: ${result.customerPhone}\n📍 Dirección: ${result.deliveryAddress}\n${refLine}─────────────────────\n\n_Cuando entregues responde ENTREGADO o presiona el botón 👇_`;
-
-        await whatsappClient.sendMessage(
-          buttonMessage(result.driverPhone, driverBody, [
-            { id: `driver_delivered:${result.order.id}`, title: '✅ Entregado' },
-          ]),
-        );
+        void sendPushToPhone(result.customerPhone, '🛵 En camino', 'Tu pedido va en camino a tu dirección', `/order/${result.order.id}`);
 
         return result.order;
       } catch (err) {
@@ -555,11 +458,10 @@ const adminPhone = await getConfig('ADMIN_PHONE');
     deliveryAddress?: string;
     paymentMethod: 'EFECTIVO' | 'PAGO_MOVIL';
     paymentReference?: string;
-    notifyCustomer: boolean;
   }
   app.post<{ Body: ManualOrderBody }>('/api/orders/manual', { preHandler: verifyJwt }, async (req, reply) => {
     const { customerId, customerName, customerPhone, items, deliveryType,
-            deliveryAddress, paymentMethod, paymentReference, notifyCustomer } = req.body;
+            deliveryAddress, paymentMethod, paymentReference } = req.body;
 
     if (!customerId && !customerPhone) {
       return reply.code(400).send({ error: 'customerId or customerPhone is required' });
@@ -625,23 +527,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
       include: { customer: true, items: { include: { menuItem: true } } },
     });
     emitOrderUpdated(full ?? order);
-
-    // Optional WhatsApp notification
-    if (notifyCustomer) {
-      const cust = await prisma.customer.findUnique({ where: { id: resolvedCustomerId } });
-      if (cust) {
-        const rate = parseFloat((await getConfig('USD_TO_BS_RATE')) ?? '36.50');
-        const totalBs = (cart.reduce((s, i) => s + i.quantity * i.unitPriceUsd, 0) + deliveryFeeUsd) * rate;
-        const itemLines = cart.map(i => `• ${i.quantity}x ${i.name}`).join('\n');
-        const msg =
-          `✅ *Pedido registrado*\n\n${itemLines}\n\n` +
-          `💰 Total: Bs ${totalBs.toFixed(2)}\n` +
-          (paymentMethod === 'EFECTIVO'
-            ? '💵 Pago en efectivo al recibir'
-            : '📋 Pendiente verificación de pago');
-        await whatsappClient.sendMessage(textMessage(cust.phone, msg)).catch(() => undefined);
-      }
-    }
 
     return reply.send({ ok: true, orderId: order.id });
   });
@@ -1554,18 +1439,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
         activeOrderId: undefined,
       });
 
-      // Notificar al cliente
-      try {
-        await whatsappClient.sendMessage(
-          textMessage(
-            customer.phone,
-            '¡Hola! Tuvimos un pequeño inconveniente técnico pero ya está resuelto 😊\nPuedes hacer tu pedido normalmente.',
-          ),
-        );
-      } catch (err) {
-        logger.error({ err, customerId: id }, 'WhatsApp notification failed on session reset');
-      }
-
       logger.info(
         { customerId: id, phone: customer.phone, cancelledOrderId: activeOrder?.id ?? null },
         'Session reset from dashboard',
@@ -1844,21 +1717,6 @@ const adminPhone = await getConfig('ADMIN_PHONE');
         '¡Tu pedido llegó! Gracias por preferirnos 🙏',
         `/review/${id}`,
       );
-
-      // Notificaciones WhatsApp asíncronas (no bloquean la respuesta al motorizado)
-      void (async () => {
-        try {
-          await sendDeliveryNotifications(customerPhone, id);
-          const adminPhone = await getConfig('ADMIN_PHONE');
-          if (adminPhone) {
-            const fId = String(order.orderNumber).padStart(4, '0');
-            await whatsappClient.sendMessage(textMessage(adminPhone,
-              `✅ *PWA Motorizado* — Entregado\n*#${fId}* · ${order.customer.name ?? customerPhone}`));
-          }
-        } catch (err) {
-          logger.error({ err, orderId: id }, 'Post-delivery notifications failed');
-        }
-      })();
 
       return { ok: true, message: 'Entrega confirmada' };
     },
