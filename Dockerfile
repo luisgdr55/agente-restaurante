@@ -11,11 +11,8 @@ RUN npm ci --frozen-lockfile
 # ── Builder ───────────────────────────────────────────────────────────────────
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY prisma ./prisma
-COPY src ./src
-COPY tsconfig.json ./
-COPY package.json ./
-RUN node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
+COPY . .
+RUN node_modules/.bin/prisma generate
 RUN npm run build
 
 # ── Production ────────────────────────────────────────────────────────────────
