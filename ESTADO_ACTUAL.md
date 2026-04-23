@@ -165,15 +165,6 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - [ ] Feature 9 GPS pendiente de implementar
 - [ ] Verificar en Railway que el backend deploya correctamente con
       el Dockerfile restaurado
-- [ ] Pago móvil — Opción B+C en CheckoutPage:
-      B) Botón "📋 Copiar datos de pago" que copia todo formateado:
-         "Banco: X\nTeléfono: X\nRIF: X\nMonto: Bs X.XX"
-         Compatible con Smart Paste de Banesco y otros bancos.
-         Botón cambia a "✅ Copiado" por 2 segundos tras copiar.
-      C) Botón "Pagar con BDV" que abre deep link:
-         bdvmovil://pagomovil?telefono=X&rif=X&monto=X
-         Solo visible si el monto ya está calculado.
-         Si la app no está instalada, no hace nada (manejo silencioso).
 
 ## Notas de deploy (Railway)
 
