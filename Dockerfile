@@ -15,7 +15,7 @@ COPY prisma ./prisma
 COPY src ./src
 COPY tsconfig.json ./
 COPY package.json ./
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
 # ── Production ────────────────────────────────────────────────────────────────
@@ -42,4 +42,4 @@ USER appuser
 EXPOSE 3000
 
 # Run migrations then start app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/index.js"]
