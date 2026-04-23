@@ -11,8 +11,10 @@ RUN npm ci --frozen-lockfile
 # ── Builder ───────────────────────────────────────────────────────────────────
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN ls -la prisma/ || echo "PRISMA DIR NOT FOUND"
+COPY prisma ./prisma
+COPY src ./src
+COPY tsconfig.json ./
+COPY package.json ./
 RUN npx prisma generate --schema=./prisma/schema.prisma
 RUN npm run build
 
