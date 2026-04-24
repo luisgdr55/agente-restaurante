@@ -46,7 +46,7 @@ export default function NotificationModal({ phone, vapidPublicKey, onClose }: No
         keys: { p256dh: string; auth: string }
       }
 
-      await axios.post('/api/push/subscribe', {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'}/api/push/subscribe`, {
         endpoint: sub.endpoint,
         keys: sub.keys,
         phone,

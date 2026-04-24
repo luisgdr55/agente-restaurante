@@ -78,7 +78,7 @@ export default function MenuPage() {
         applicationServerKey: urlBase64ToUint8Array(config.vapidPublicKey),
       })
       const sub = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
-      await axios.post('/api/push/subscribe', { endpoint: sub.endpoint, keys: sub.keys, phone })
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'}/api/push/subscribe`, { endpoint: sub.endpoint, keys: sub.keys, phone })
       localStorage.setItem('yebrams_push_asked', '1')
     } catch {
       // Silently fail — non-critical

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api/public' })
+const api = axios.create({ baseURL: `${import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'}/api/public` })
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
