@@ -232,10 +232,12 @@ export default function OrderTrackingPage() {
     setCancelConfirmOpen(false)
     try {
       await publicApi.cancelOrder(orderId!)
+      alert('cancelado ok')
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       navigate('/', { replace: true })
-    } catch {
+    } catch (err: any) {
+      alert('error: ' + JSON.stringify(err?.response?.data) + ' / ' + err?.message)
       setCancelling(false)
     }
   }
