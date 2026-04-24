@@ -135,6 +135,7 @@ export default function OrderTrackingPage() {
   const [proofPreview, setProofPreview] = useState<string | null>(null)
   const [uploadingProof, setUploadingProof] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -227,15 +228,17 @@ export default function OrderTrackingPage() {
 
   const handleCancel = async () => {
     if (!orderId) return
-    if (!window.confirm('¿Cancelar este pedido?')) return
     setCancelling(true)
+    setCancelConfirmOpen(false)
     try {
       await publicApi.cancelOrder(orderId!)
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       navigate('/', { replace: true })
-    } catch {
-      alert('No se pudo cancelar el pedido.')
+    } catch (err) {
+      console.error('[cancelOrder] failed:', err)
+      const msg = (err as any)?.response?.data?.error ?? (err as any)?.message ?? String(err)
+      alert(`Error al cancelar: ${msg}`)
       setCancelling(false)
     }
   }
@@ -334,10 +337,28 @@ export default function OrderTrackingPage() {
               </button>
             )}
 
-            <button onClick={() => void handleCancel()} disabled={cancelling}
+            <button onClick={() => setCancelConfirmOpen(true)} disabled={cancelling}
               style={{ width: '100%', padding: '0.65rem', background: 'transparent', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, fontWeight: 600, fontSize: '0.85rem' }}>
               {cancelling ? 'Cancelando...' : 'Cancelar pedido'}
             </button>
+
+            {cancelConfirmOpen && (
+              <div style={{ marginTop: '0.75rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+                  ¿Seguro que quieres cancelar este pedido?
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => void handleCancel()}
+                    style={{ flex: 1, padding: '0.65rem', background: '#ef4444', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.85rem' }}>
+                    Sí, cancelar
+                  </button>
+                  <button onClick={() => setCancelConfirmOpen(false)}
+                    style={{ flex: 1, padding: '0.65rem', background: 'var(--surface)', color: 'var(--text-muted)', borderRadius: 10, fontWeight: 600, fontSize: '0.85rem', border: '1px solid #333' }}>
+                    No, volver
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
