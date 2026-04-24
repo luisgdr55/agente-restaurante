@@ -25,7 +25,10 @@ async function bootstrap() {
 
   // ── Plugins ────────────────────────────────────────────────────────────────
   await app.register(cors, {
-    origin: env.NODE_ENV === 'production' ? false : true,
+    origin: env.NODE_ENV === 'production'
+      ? [/\.up\.railway\.app$/, /localhost/]
+      : true,
+    credentials: true,
   });
 
   await app.register(helmet, {
