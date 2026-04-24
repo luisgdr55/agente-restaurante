@@ -11,6 +11,7 @@ RUN npm ci --frozen-lockfile
 # ── Builder ───────────────────────────────────────────────────────────────────
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
+RUN echo "build context test" && ls -la
 COPY . .
 RUN npx prisma generate
 RUN npm run build
