@@ -12,6 +12,13 @@ import { sendPushToPhone } from '../notifications/push-service';
 import { redisClient } from '../redis/client';
 import { getSession, updateSessionState } from '../redis/session-manager';
 
+// Replaces paymentImageUrl (large base64) with hasPaymentImage boolean for socket events
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripPaymentImage(order: any) {
+  const { paymentImageUrl, ...rest } = order;
+  return { ...rest, hasPaymentImage: Boolean(paymentImageUrl) };
+}
+
 export interface CreateOrderInput {
   customerId: string;
   cart: CartItem[];
@@ -85,7 +92,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     where: { id: order.id },
     include: { customer: true, items: { include: { menuItem: true } } },
   });
-  emitOrderNew(fullOrder ?? order);
+  emitOrderNew(stripPaymentImage(fullOrder ?? order));
   return order;
 }
 
@@ -116,7 +123,7 @@ export async function updateOrderStatus(
     include: { customer: true, items: { include: { menuItem: true } } },
   });
   logger.info({ orderId, status }, 'Order status updated');
-  emitOrderUpdated(order);
+  emitOrderUpdated(stripPaymentImage(order));
   void emitTodayStats(); // non-blocking — actualiza el panel de stats en el dashboard
 
   // ─── Push notifications al cliente ───────────────────────────────────────

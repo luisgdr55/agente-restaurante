@@ -1,4 +1,4 @@
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_NAME = `yebrams-v${CACHE_VERSION}`;
 
 // ── Install ────────────────────────────────────────────────────────────────

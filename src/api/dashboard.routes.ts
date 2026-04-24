@@ -44,12 +44,16 @@ function getTokenRole(req: FastifyRequest): string | null {
 export async function dashboardRoutes(app: FastifyInstance) {
   // Strips paymentImageUrl (large base64) and replaces with hasPaymentImage boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function serializeOrder(order: any) {
+    const { paymentImageUrl, ...o } = order;
+    const hasPaymentImage = Boolean(paymentImageUrl);
+    logger.debug({ orderId: o.id, hasPaymentImage, urlPrefix: paymentImageUrl?.substring(0, 20) }, '[proof] serializeOrder');
+    return { ...o, hasPaymentImage };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function serializeOrders(orders: any[]) {
-    return orders.map(({ paymentImageUrl, ...o }) => {
-      const hasPaymentImage = Boolean(paymentImageUrl);
-      logger.debug({ orderId: o.id, hasPaymentImage, urlPrefix: paymentImageUrl?.substring(0, 20) }, '[proof] serializeOrders');
-      return { ...o, hasPaymentImage };
-    });
+    return orders.map(serializeOrder);
   }
 
   // GET /api/orders — active orders (not DELIVERED/CANCELLED)
@@ -154,7 +158,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           data: extraData as never,
           include: { customer: true, items: { include: { menuItem: true } } },
         });
-        emitOrderUpdated(order);
+        emitOrderUpdated(serializeOrder(order));
 
         const customerPhone = order.customer.phone;
         const fId = String(order.orderNumber).padStart(4, '0');
@@ -526,7 +530,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       where: { id: order.id },
       include: { customer: true, items: { include: { menuItem: true } } },
     });
-    emitOrderUpdated(full ?? order);
+    emitOrderUpdated(serializeOrder(full ?? order));
 
     return reply.send({ ok: true, orderId: order.id });
   });
@@ -1427,7 +1431,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           where: { id: activeOrder.id },
           include: { customer: true, items: { include: { menuItem: true } } },
         });
-        if (updatedOrder) emitOrderUpdated(updatedOrder);
+        if (updatedOrder) emitOrderUpdated(serializeOrder(updatedOrder));
       }
 
       // Resetear sesión Redis
@@ -1629,7 +1633,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         where: { id: order.id },
         include: { customer: true, items: { include: { menuItem: true } } },
       });
-      emitOrderUpdated(full ?? order);
+      emitOrderUpdated(serializeOrder(full ?? order));
 
       // Save delivery address for next time
       if (deliveryType === 'DELIVERY' && address?.trim()) {
@@ -1706,7 +1710,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         data: { status: 'DELIVERED', deliveredAt: new Date() },
         include: { customer: true, items: { include: { menuItem: true } } },
       });
-      emitOrderUpdated(updated);
+      emitOrderUpdated(serializeOrder(updated));
       void emitTodayStats();
 
       // Push al cliente
@@ -1787,7 +1791,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         data: { paymentImageUrl, status: 'PAYMENT_UPLOADED' },
         include: { customer: true, items: { include: { menuItem: true } } },
       });
-      emitOrderUpdated(updated);
+      emitOrderUpdated(serializeOrder(updated));
       // Push al admin si tiene suscripción
       const adminPhone = await getConfig('ADMIN_PHONE');
       if (adminPhone) {
@@ -1816,7 +1820,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'Cancelado por el cliente' },
         include: { customer: true, items: { include: { menuItem: true } } },
       });
-      emitOrderUpdated(updated);
+      emitOrderUpdated(serializeOrder(updated));
       const adminPhone = await getConfig('ADMIN_PHONE');
       if (adminPhone) {
         const fId = String(order.orderNumber).padStart(4, '0');

@@ -21,6 +21,7 @@ async function bootstrap() {
   const app = Fastify({
     logger: false, // usamos pino directamente
     trustProxy: true,
+    bodyLimit: 10 * 1024 * 1024, // 10 MB — permite comprobantes de pago en base64
   });
 
   // ── Plugins ────────────────────────────────────────────────────────────────

@@ -78,6 +78,18 @@ export function isRestaurantOpen(config: PublicConfig): boolean {
   }
 }
 
+export interface TrackingOrder {
+  id: string
+  orderNumber: number
+  status: string
+  deliveryType: string | null
+  deliveryAddress: string | null
+  customerName: string | null
+  totalUsd: string
+  totalBs: string
+  items: { name: string; quantity: number; unitPriceUsd: string }[]
+}
+
 export interface WebOrderBody {
   customerName: string
   phone: string
@@ -101,4 +113,10 @@ export const publicApi = {
     api.post<WebOrderResponse>('/orders', body).then((r) => r.data),
   getSavedAddress: (phone: string) =>
     api.get<{ savedAddress: string | null }>(`/customers/${encodeURIComponent(phone)}`).then((r) => r.data.savedAddress),
+  getOrderTracking: (orderId: string) =>
+    api.get<TrackingOrder>(`/orders/${orderId}/tracking`).then((r) => r.data),
+  uploadPaymentProof: (orderId: string, paymentImageUrl: string) =>
+    api.patch(`/orders/${orderId}/payment-proof`, { paymentImageUrl }),
+  cancelOrder: (orderId: string) =>
+    api.delete(`/orders/${orderId}`),
 }

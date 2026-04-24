@@ -16,11 +16,25 @@ function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-function fileToBase64(file: File): Promise<string> {
+function compressAndEncode(file: File, maxPx = 1200, quality = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
     reader.onerror = reject
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = reject
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.src = reader.result as string
+    }
     reader.readAsDataURL(file)
   })
 }
@@ -105,7 +119,7 @@ export default function CheckoutPage() {
     try {
       let proofImageBase64: string | undefined
       if (proofFile) {
-        proofImageBase64 = await fileToBase64(proofFile)
+        proofImageBase64 = await compressAndEncode(proofFile)
       }
 
       const result = await publicApi.createOrder({

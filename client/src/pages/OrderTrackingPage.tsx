@@ -1,25 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import axios from 'axios'
 import { io } from 'socket.io-client'
 import Layout from '../components/Layout'
+import { publicApi, type TrackingOrder } from '../api/api'
 
 // Backend URL for socket.io (direct WS, bypasses nginx — WebSocket doesn't use CORS)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface TrackingOrder {
-  id: string
-  orderNumber: number
-  status: string
-  deliveryType: string | null
-  deliveryAddress: string | null
-  customerName: string | null
-  totalUsd: string
-  totalBs: string
-  items: { name: string; quantity: number; unitPriceUsd: string }[]
-}
 
 // ── localStorage helpers ───────────────────────────────────────────────────
 
@@ -154,8 +140,7 @@ export default function OrderTrackingPage() {
 
   const fetchOrder = async () => {
     try {
-      const res = await axios.get<TrackingOrder>(`/api/public/orders/${orderId}/tracking`)
-      const o = res.data
+      const o = await publicApi.getOrderTracking(orderId!)
       setOrder(o)
       setPrevPhase((p) => p)
       setPhase(statusToPhase(o.status))
@@ -229,7 +214,7 @@ export default function OrderTrackingPage() {
         reader.onerror = rej
         reader.readAsDataURL(proofFile)
       })
-      await axios.patch(`/api/public/orders/${orderId}/payment-proof`, { paymentImageUrl: base64 })
+      await publicApi.uploadPaymentProof(orderId!, base64)
       setProofFile(null)
       setProofPreview(null)
       await fetchOrder()
@@ -245,7 +230,7 @@ export default function OrderTrackingPage() {
     if (!window.confirm('¿Cancelar este pedido?')) return
     setCancelling(true)
     try {
-      await axios.delete(`/api/public/orders/${orderId}`)
+      await publicApi.cancelOrder(orderId!)
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       navigate('/', { replace: true })
