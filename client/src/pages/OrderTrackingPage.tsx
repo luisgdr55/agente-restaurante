@@ -233,9 +233,9 @@ export default function OrderTrackingPage() {
     try {
       // DEBUG: confirm backend reachable from mobile before DELETE
       try {
-        const probe = await fetch(`https://yebrams.up.railway.app/api/public/orders/${orderId}`)
+        const probe = await fetch(`https://yebrams.up.railway.app/api/public/orders/${orderId}/tracking`)
         console.log('[cancelOrder] GET probe status:', probe.status)
-        alert(`[DEBUG] GET /orders/${orderId} → ${probe.status}`)
+        alert(`[DEBUG] GET /orders/${orderId}/tracking → ${probe.status}`)
       } catch (probeErr) {
         console.error('[cancelOrder] GET probe failed:', probeErr)
         alert(`[DEBUG] GET probe failed: ${String(probeErr)}`)
