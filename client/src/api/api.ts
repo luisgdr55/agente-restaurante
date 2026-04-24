@@ -78,6 +78,15 @@ export function isRestaurantOpen(config: PublicConfig): boolean {
   }
 }
 
+export interface OrderPublic {
+  id: string
+  orderNumber: number
+  status: string
+  deliveryAddress: string | null
+  deliveryReference: string | null
+  customer: { name: string | null; phone: string }
+}
+
 export interface TrackingOrder {
   id: string
   orderNumber: number
@@ -115,6 +124,12 @@ export const publicApi = {
     api.get<{ savedAddress: string | null }>(`/customers/${encodeURIComponent(phone)}`).then((r) => r.data.savedAddress),
   getOrderTracking: (orderId: string) =>
     api.get<TrackingOrder>(`/orders/${orderId}/tracking`).then((r) => r.data),
+  getOrderPublic: (orderId: string) =>
+    api.get<OrderPublic>(`/orders/${orderId}`).then((r) => r.data),
+  confirmDelivery: (orderId: string) =>
+    api.post(`/orders/${orderId}/delivered`),
+  submitReview: (orderId: string, body: { rating: number; comment?: string }) =>
+    api.post(`/reviews/${orderId}`, body),
   uploadPaymentProof: (orderId: string, paymentImageUrl: string) =>
     api.patch(`/orders/${orderId}/payment-proof`, { paymentImageUrl }),
   cancelOrder: (orderId: string) =>

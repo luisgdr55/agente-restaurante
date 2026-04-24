@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { clearActiveOrder } from './OrderTrackingPage'
+import { publicApi } from '../api/api'
 
 type PageState = 'loading' | 'ready' | 'submitting' | 'done' | 'already_done' | 'not_available' | 'error'
 
@@ -20,47 +21,31 @@ export default function ReviewPage() {
   useEffect(() => {
     if (!orderId) { setPageState('error'); setErrorMsg('ID de pedido inválido'); return }
 
-    fetch(`/api/public/orders/${orderId}`)
-      .then(async (res) => {
-        if (res.status === 404) { setPageState('not_available'); return }
-        if (res.status === 403) {
-          // status != OUT_FOR_DELIVERY y != DELIVERED — pedido no disponible
-          // Pero para reseñas necesitamos que esté DELIVERED
-          setPageState('not_available')
-          return
-        }
-        if (!res.ok) throw new Error('Pedido no encontrado')
-        const data = await res.json()
+    publicApi.getOrderPublic(orderId)
+      .then((data) => {
         setOrderNumber(data.orderNumber)
         setPageState('ready')
       })
-      .catch((e) => { setPageState('error'); setErrorMsg(e.message) })
+      .catch((err: any) => {
+        const status = err?.response?.status
+        if (status === 403 || status === 404) { setPageState('not_available'); return }
+        setPageState('error')
+        setErrorMsg(err?.response?.data?.error ?? err?.message ?? 'Pedido no encontrado')
+      })
   }, [orderId])
 
   const handleSubmit = async () => {
     if (!orderId || rating === 0) return
     setPageState('submitting')
     try {
-      const res = await fetch(`/api/public/reviews/${orderId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, comment: comment.trim() || undefined }),
-      })
-      if (res.status === 409) {
-        // pedido no entregado aún
-        setPageState('not_available')
-        return
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Error al enviar reseña')
-      }
+      await publicApi.submitReview(orderId, { rating, comment: comment.trim() || undefined })
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       setPageState('done')
       setTimeout(() => navigate('/', { replace: true }), 2000)
-    } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'Error desconocido')
+    } catch (err: any) {
+      if (err?.response?.status === 409) { setPageState('not_available'); return }
+      setErrorMsg(err?.response?.data?.error ?? err?.message ?? 'Error desconocido')
       setPageState('error')
     }
   }

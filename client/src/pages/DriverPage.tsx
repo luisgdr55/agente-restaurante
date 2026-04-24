@@ -1,47 +1,36 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-
-interface OrderInfo {
-  id: string
-  orderNumber: number
-  status: string
-  deliveryAddress: string | null
-  deliveryReference: string | null
-  customer: { name: string | null; phone: string }
-}
+import { publicApi, type OrderPublic } from '../api/api'
 
 type PageState = 'loading' | 'ready' | 'confirming' | 'done' | 'already_done' | 'error'
 
 export default function DriverPage() {
   const { orderId } = useParams<{ orderId: string }>()
-  const [order, setOrder] = useState<OrderInfo | null>(null)
+  const [order, setOrder] = useState<OrderPublic | null>(null)
   const [pageState, setPageState] = useState<PageState>('loading')
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     if (!orderId) { setPageState('error'); setErrorMsg('ID de pedido inválido'); return }
 
-    fetch(`/api/public/orders/${orderId}`)
-      .then(async (res) => {
-        if (res.status === 403) { setPageState('already_done'); return }
-        if (!res.ok) throw new Error('Pedido no encontrado')
-        const data: OrderInfo = await res.json()
+    publicApi.getOrderPublic(orderId)
+      .then((data) => {
         setOrder(data)
         if (data.status === 'DELIVERED') setPageState('already_done')
         else setPageState('ready')
       })
-      .catch((e) => { setPageState('error'); setErrorMsg(e.message) })
+      .catch((err: any) => {
+        if (err?.response?.status === 403) { setPageState('already_done'); return }
+        setPageState('error')
+        setErrorMsg(err?.response?.data?.error ?? err?.message ?? 'Pedido no encontrado')
+      })
   }, [orderId])
 
   const handleConfirm = async () => {
     if (!orderId) return
     setPageState('confirming')
     try {
-      const res = await fetch(`/api/public/orders/${orderId}/delivered`, { method: 'POST' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? 'Error al confirmar')
-      }
+      await publicApi.confirmDelivery(orderId)
       setPageState('done')
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error desconocido')

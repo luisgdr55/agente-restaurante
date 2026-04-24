@@ -231,26 +231,11 @@ export default function OrderTrackingPage() {
     setCancelling(true)
     setCancelConfirmOpen(false)
     try {
-      // DEBUG: confirm backend reachable from mobile before DELETE
-      try {
-        const probe = await fetch(`https://yebrams.up.railway.app/api/public/orders/${orderId}/tracking`)
-        console.log('[cancelOrder] GET probe status:', probe.status)
-        alert(`[DEBUG] GET /orders/${orderId}/tracking → ${probe.status}`)
-      } catch (probeErr) {
-        console.error('[cancelOrder] GET probe failed:', probeErr)
-        alert(`[DEBUG] GET probe failed: ${String(probeErr)}`)
-      }
-
       await publicApi.cancelOrder(orderId!)
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       navigate('/', { replace: true })
-    } catch (err: any) {
-      console.error('[cancelOrder] failed:', err)
-      const serverMsg = err?.response?.data?.error ?? '—'
-      const message   = err?.message ?? '—'
-      const code      = err?.code ?? '—'
-      alert(`Error al cancelar:\nserver: ${serverMsg}\nmessage: ${message}\ncode: ${code}`)
+    } catch {
       setCancelling(false)
     }
   }
