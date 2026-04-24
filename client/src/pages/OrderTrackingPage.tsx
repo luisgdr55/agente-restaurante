@@ -345,7 +345,7 @@ export default function OrderTrackingPage() {
                   ¿Seguro que quieres cancelar este pedido?
                 </p>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => void handleCancel()}
+                  <button onClick={() => { alert(`[DEBUG] orderId: ${orderId}\nstatus: ${order?.status}`); void handleCancel() }}
                     style={{ flex: 1, padding: '0.65rem', background: '#ef4444', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.85rem' }}>
                     Sí, cancelar
                   </button>
