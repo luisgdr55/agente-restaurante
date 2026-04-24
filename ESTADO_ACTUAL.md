@@ -155,6 +155,32 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `COPY prisma ./prisma` en production (del build context)
 - `.dockerignore` agregado (node_modules, dist, .env, etc. — no excluye prisma/)
 
+## Sesión 2026-04-24 — Fixes Railway deploy + PWA menú visible ✅
+
+### Fix backend Dockerfile — COPY prisma desde builder ✅
+- Root cause: `COPY prisma ./prisma` en etapa `production` fallaba porque el build
+  context no está disponible en esa etapa, solo en `builder`
+- Fix: cambiado a `COPY --from=builder /app/prisma ./prisma`
+
+### Fix client/railway.toml — Dockerfile incorrecto ✅
+- Root cause: `dockerfilePath = "Dockerfile"` se resolvía al `Dockerfile` raíz
+  (backend), no al `client/Dockerfile` — Railway ejecutaba el Dockerfile del
+  backend con build context de `client/` (sin `prisma/`) → `npx prisma generate` fallaba
+- Fix: eliminado `dockerfilePath` de `client/railway.toml` para que Railway
+  auto-detecte `Dockerfile` dentro del `root_dir=client`
+- También: `client/nginx.conf` eliminado, Dockerfile simplificado a single-stage con `serve`
+
+### Fix CORS producción ✅
+- Root cause: `origin: false` en producción bloqueaba todas las peticiones
+  cross-origin desde `yebramspedidos.up.railway.app`
+- Fix: `origin: [/\.up\.railway\.app$/, /localhost/]` en `src/index.ts`
+
+### Fix URLs relativas en cliente ✅
+- Root cause: `serve` no tiene proxy, las peticiones a `/api/public` iban
+  a la PWA en lugar del backend
+- Fix: `baseURL` en `api.ts` y llamadas en `NotificationModal.tsx` y `MenuPage.tsx`
+  usan URL absoluta con fallback `https://yebrams.up.railway.app`
+
 ## Pendientes próxima sesión
 
 - [ ] Dashboard: botón "Ver comprobante" aparece solo después de F5
@@ -163,8 +189,6 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - [ ] Menú: agregar categoría "Bebidas" con imagen del menú visual
       (el usuario la enviará en la próxima sesión)
 - [ ] Feature 9 GPS pendiente de implementar
-- [ ] Verificar en Railway que el backend deploya correctamente con
-      el Dockerfile restaurado
 
 ## Notas de deploy (Railway)
 
