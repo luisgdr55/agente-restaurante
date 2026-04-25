@@ -353,7 +353,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
       {qrOpen && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '1rem',
         }} onClick={() => setQrOpen(false)}>
           <div style={{
@@ -387,7 +387,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
       {proofOpen && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '1rem', overflowY: 'auto',
         }} onClick={() => setProofOpen(false)}>
           <div style={{
