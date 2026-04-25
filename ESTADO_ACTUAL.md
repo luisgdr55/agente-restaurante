@@ -237,6 +237,32 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
   y `preflightContinue: false` al plugin `@fastify/cors`
 - Garantiza que preflight OPTIONS del DELETE no caiga en 404
 
+## Sesión 2026-04-25 (continuación 2) — Diagnóstico y fixes de rendimiento dashboard ✅
+
+### Diagnóstico rendimiento backend ✅
+- Latencia base Railway: ~600-900ms (red, inevitable)
+- Root cause queries lentas: `GET /api/orders` y `/api/orders/today` cargaban
+  `paymentImageUrl` (base64 ~200-500KB/pedido) desde PostgreSQL y lo descartaban
+  en `serializeOrder` — potencialmente MBs de transferencia inútil por carga
+- Índices DB: ya presentes (`status`, `createdAt`, `status+createdAt`) — no requería acción
+
+### Fix: excluir blob paymentImageUrl de queries de lista ✅
+- `src/api/dashboard.routes.ts`: nueva función `listOrders(where, orderBy)` que
+  ejecuta **dos queries en paralelo**: (1) `findMany` con `select` explícito que
+  excluye `paymentImageUrl`, (2) query ligera `SELECT id WHERE paymentImageUrl IS NOT NULL`
+- Resultado: `hasPaymentImage` se calcula sin cargar el blob desde PostgreSQL
+- `serializeOrder` se conserva solo para mutaciones de registro único (PATCH status, upload)
+- Constante `ORDER_SCALAR_SELECT` con todos los campos escalares de `Order` (sin blob)
+
+### Fix CRÍTICO: dashboard hacía requests a sí mismo ✅
+- Root cause: `dashboard/src/api/api.ts` tenía `baseURL: '/api'` — con `serve` sin
+  proxy, las requests iban a `yebrams-dashboard.up.railway.app/api/...` → 502
+- `dashboard/src/socket/socket.ts`: fallback `VITE_API_URL ?? ''` conectaba WebSocket
+  al host del dashboard en vez del backend → conexión fallida
+- Fix `api.ts`: `baseURL: \`${VITE_API_URL ?? 'https://yebrams.up.railway.app'}/api\``
+- Fix `socket.ts`: fallback cambiado a `'https://yebrams.up.railway.app'`
+- **Nota**: fix deployado pero pendiente verificación — el bug puede persistir
+
 ## Sesión 2026-04-25 (continuación) — Fixes dashboard estabilidad ✅
 
 ### Fix: modal comprobante detrás de cards (z-index) ✅
@@ -263,19 +289,26 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 
 ## Pendientes próxima sesión
 
-- [ ] **BUG CRÍTICO**: Dashboard admin inestable — no carga o es muy lento en
-      producción (Railway). Síntomas: pantalla en blanco, carga infinita, lentitud
-      general. Posibles causas: nginx proxy timeout al backend, cold starts de
-      Railway, consultas DB lentas sin índices, o problema de red interna Railway.
-      **Investigar primero**: logs de Railway backend + tiempos de respuesta de
-      `/api/orders` y `/api/orders/today`
+- [ ] 🚨 **BUG CRÍTICO — Dashboard: múltiples pestañas no cargan (Config, Finanzas, Menú)**
+      Root cause: URLs relativas en el dashboard resuelven contra el host del dashboard
+      en vez del backend — mismo patrón que se corrigió en la PWA cliente.
+      Síntomas: 502 en `/api/drivers`, `/api/promos/days`, WebSocket conecta a host equivocado.
+      Fix intentado: `dashboard/src/api/api.ts` → `baseURL: '/api'` cambiado a URL absoluta con
+      fallback `https://yebrams.up.railway.app`; `socket.ts` fallback corregido igual.
+      Bug persiste — revisión más profunda requerida. **Atender primero.**
+
 - [ ] **Bug**: Dashboard botón "Ver comprobante" — verificar si ya funciona tras
       el fix de `createPortal` y `serializeOrder()`
+
 - [ ] **Validación**: comprobante obligatorio en Checkout antes de confirmar pedido
-- [ ] **Rediseño UX**: animaciones y estilo general de la PWA
+
 - [ ] **UX**: mensaje `PAYMENT_REJECTED` menos agresivo — reemplazar X roja grande
       por algo más sutil (ej. banner amarillo de advertencia)
-- [ ] **Feature 9**: GPS del cliente en Checkout
+
+- [ ] **Rediseño UX**: animaciones y estilo general de la PWA
+
+- [ ] **Feature**: GPS del cliente en Checkout
+
 - [ ] **Menú**: agregar categoría "Bebidas" con imagen (el usuario la enviará)
 
 ## Notas de deploy (Railway)
