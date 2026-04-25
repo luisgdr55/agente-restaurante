@@ -325,12 +325,12 @@ export default function OrderTrackingPage() {
 
         {/* ── PAYMENT_REJECTED ── */}
         {isRejected && (
-          <div style={{ margin: '1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 14, padding: '1.25rem' }}>
+          <div style={{ margin: '1rem', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 14, padding: '1.25rem' }}>
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>❌</div>
-              <p style={{ fontWeight: 700, fontSize: '1rem', color: '#ef4444' }}>Tu pago no pudo verificarse</p>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⚠️</div>
+              <p style={{ fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}>Necesitamos verificar tu pago</p>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-                Sube un nuevo comprobante o cancela el pedido.
+                Por favor sube un nuevo comprobante o cancela si lo prefieres.
               </p>
             </div>
 
@@ -359,12 +359,12 @@ export default function OrderTrackingPage() {
             )}
 
             <button onClick={() => setCancelConfirmOpen(true)} disabled={cancelling}
-              style={{ width: '100%', padding: '0.65rem', background: 'transparent', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, fontWeight: 600, fontSize: '0.85rem' }}>
+              style={{ width: '100%', padding: '0.65rem', background: 'transparent', border: '1px solid #3A3A3A', color: 'var(--text-muted)', borderRadius: 10, fontWeight: 600, fontSize: '0.85rem' }}>
               {cancelling ? 'Cancelando...' : 'Cancelar pedido'}
             </button>
 
             {cancelConfirmOpen && (
-              <div style={{ marginTop: '0.75rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
+              <div style={{ marginTop: '0.75rem', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '1rem', textAlign: 'center' }}>
                 <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem' }}>
                   ¿Seguro que quieres cancelar este pedido?
                 </p>
