@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+const BACKEND = import.meta.env.VITE_API_URL ?? 'https://yebrams.up.railway.app';
+const api = axios.create({ baseURL: `${BACKEND}/api` });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
