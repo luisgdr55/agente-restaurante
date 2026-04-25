@@ -232,12 +232,10 @@ export default function OrderTrackingPage() {
     setCancelConfirmOpen(false)
     try {
       await publicApi.cancelOrder(orderId!)
-      alert('cancelado ok')
       clearActiveOrder()
       localStorage.removeItem('yebrams_cart')
       navigate('/', { replace: true })
-    } catch (err: any) {
-      alert('error: ' + JSON.stringify(err?.response?.data) + ' / ' + err?.message)
+    } catch {
       setCancelling(false)
     }
   }
@@ -347,7 +345,7 @@ export default function OrderTrackingPage() {
                   ¿Seguro que quieres cancelar este pedido?
                 </p>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => { alert(`[DEBUG] orderId: ${orderId}\nstatus: ${order?.status}`); void handleCancel() }}
+                  <button onClick={() => void handleCancel()}
                     style={{ flex: 1, padding: '0.65rem', background: '#ef4444', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.85rem' }}>
                     Sí, cancelar
                   </button>
