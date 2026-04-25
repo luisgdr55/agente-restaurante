@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../db/prisma';
 import jwt from 'jsonwebtoken';
@@ -41,8 +42,21 @@ function getTokenRole(req: FastifyRequest): string | null {
   }
 }
 
+// All Order scalar fields except paymentImageUrl (large base64 blob).
+// Used in list queries to avoid fetching MBs of image data per request.
+const ORDER_SCALAR_SELECT = {
+  id: true, customerId: true, status: true, deliveryType: true,
+  deliveryAddress: true, deliveryReference: true, deliveryZone: true,
+  totalUsd: true, totalBs: true, exchangeRateUsed: true,
+  paymentMethod: true, paymentReference: true,
+  notes: true, discountUsd: true, discountBs: true, promotionId: true,
+  createdAt: true, updatedAt: true, completedAt: true,
+  deliveredAt: true, cancelledAt: true, cancelReason: true,
+  orderNumber: true, driverId: true, driverPhone: true,
+} as const;
+
 export async function dashboardRoutes(app: FastifyInstance) {
-  // Strips paymentImageUrl (large base64) and replaces with hasPaymentImage boolean
+  // For single-record mutations (update/create): strips paymentImageUrl blob, adds hasPaymentImage boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function serializeOrder(order: any) {
     const { paymentImageUrl, ...o } = order;
@@ -51,53 +65,46 @@ export async function dashboardRoutes(app: FastifyInstance) {
     return { ...o, hasPaymentImage };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function serializeOrders(orders: any[]) {
-    return orders.map(serializeOrder);
+  // For list queries: fetches orders WITHOUT the blob, probes hasPaymentImage in parallel.
+  // select instead of include avoids loading paymentImageUrl from PostgreSQL entirely.
+  async function listOrders(
+    where: Prisma.OrderWhereInput,
+    orderBy: Prisma.OrderOrderByWithRelationInput = { createdAt: 'desc' },
+  ) {
+    const [orders, withProof] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        select: {
+          ...ORDER_SCALAR_SELECT,
+          customer: true,
+          items: { include: { menuItem: true } },
+        },
+        orderBy,
+      }),
+      prisma.order.findMany({
+        where: { ...where, paymentImageUrl: { not: null } },
+        select: { id: true },
+      }),
+    ]);
+    const proofSet = new Set(withProof.map((o) => o.id));
+    return orders.map((o) => ({ ...o, hasPaymentImage: proofSet.has(o.id) }));
   }
 
   // GET /api/orders — active orders (not DELIVERED/CANCELLED)
   app.get('/api/orders', { preHandler: verifyJwt }, async (_req, reply) => {
-    const orders = await prisma.order.findMany({
-      where: {
-        status: { notIn: ['DELIVERED', 'CANCELLED'] },
-      },
-      include: {
-        customer: true,
-        items: { include: { menuItem: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return reply.send(serializeOrders(orders));
+    return reply.send(await listOrders({ status: { notIn: ['DELIVERED', 'CANCELLED'] } }));
   });
 
-  // GET /api/orders/today — all orders from today (midnight)
+  // GET /api/orders/today — all orders from today (midnight Venezuela UTC-4)
   app.get('/api/orders/today', { preHandler: verifyJwt }, async (_req, reply) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const orders = await prisma.order.findMany({
-      where: { createdAt: { gte: today } },
-      include: {
-        customer: true,
-        items: { include: { menuItem: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return reply.send(serializeOrders(orders));
+    return reply.send(await listOrders({ createdAt: { gte: today } }));
   });
 
   // GET /api/orders/kitchen — orders visible to kitchen (IN_KITCHEN + PAYMENT_CONFIRMED)
-  app.get('/api/orders/kitchen', { preHandler: verifyJwt }, async (_req, _reply) => {
-    return prisma.order.findMany({
-      where: {
-        status: { in: ['PAYMENT_CONFIRMED', 'IN_KITCHEN'] },
-      },
-      include: {
-        customer: true,
-        items: { include: { menuItem: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+  app.get('/api/orders/kitchen', { preHandler: verifyJwt }, async (_req, reply) => {
+    return reply.send(await listOrders({ status: { in: ['PAYMENT_CONFIRMED', 'IN_KITCHEN'] } }, { createdAt: 'asc' }));
   });
 
   // GET /api/stats — today's stats
