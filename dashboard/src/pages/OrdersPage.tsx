@@ -47,12 +47,21 @@ export default function OrdersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [active, today] = await Promise.all([
-        ordersApi.getActive(),
-        ordersApi.getToday(),
+      const timeout = <T,>(p: Promise<T>): Promise<T> =>
+        Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 10_000))]);
+
+      const [activeResult, todayResult] = await Promise.allSettled([
+        timeout(ordersApi.getActive()),
+        timeout(ordersApi.getToday()),
       ]);
+
+      const active = activeResult.status === 'fulfilled' ? activeResult.value : [];
+      const today  = todayResult.status  === 'fulfilled' ? todayResult.value  : [];
+
       setOrders(active);
       setTodayOrders(today);
+    } catch {
+      // falla silenciosa — se muestra la página vacía
     } finally {
       setLoading(false);
     }
