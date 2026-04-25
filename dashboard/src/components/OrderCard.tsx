@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Order, Driver } from '../api/api';
 import { ordersApi, driversApi } from '../api/api';
@@ -349,8 +350,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
         </div>
       )}
 
-      {/* Modal QR motorizado */}
-      {qrOpen && (
+      {/* Modal QR motorizado — Portal para escapar el stacking context de la card */}
+      {qrOpen && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -380,11 +381,12 @@ export default function OrderCard({ order, onRefresh }: Props) {
               Cerrar
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Modal comprobante + OCR */}
-      {proofOpen && (
+      {/* Modal comprobante + OCR — Portal para escapar el stacking context de la card */}
+      {proofOpen && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -450,7 +452,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
               Cerrar
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Panel de rechazo */}
