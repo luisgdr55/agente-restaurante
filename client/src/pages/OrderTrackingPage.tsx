@@ -47,6 +47,7 @@ const PICKUP_PHASES = [
   { icon: '📋', label: 'Recibido' },
   { icon: '✅', label: 'Pago' },
   { icon: '👨‍🍳', label: 'Cocina' },
+  { icon: '🏪', label: 'Listo' },
   { icon: '🎉', label: 'Entregado' },
 ]
 
@@ -62,9 +63,9 @@ function statusToPhase(status: string, deliveryType: string | null): number {
       case 'PENDING_PAYMENT':
       case 'PAYMENT_UPLOADED':        return 0
       case 'PAYMENT_CONFIRMED':       return 1
-      case 'IN_KITCHEN':
-      case 'READY':                   return 2
-      case 'DELIVERED':               return 3
+      case 'IN_KITCHEN':              return 2
+      case 'READY':                   return 3
+      case 'DELIVERED':               return 4
       default:                        return 0
     }
   }

@@ -181,7 +181,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
         {order.paymentReference && <span> · Ref: {order.paymentReference}</span>}
       </div>
 
-      {/* Botón comprobante */}
+      {/* Comprobante: imagen o referencia de texto */}
       {order.hasPaymentImage && (
         <div className="mt-1">
           <button
@@ -191,6 +191,11 @@ export default function OrderCard({ order, onRefresh }: Props) {
           >
             Ver comprobante 🧾
           </button>
+        </div>
+      )}
+      {!order.hasPaymentImage && order.paymentReference && (
+        <div className="mt-1" style={{ fontSize: '0.75rem', color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 6, padding: '0.3rem 0.6rem' }}>
+          📋 Ref: <span style={{ fontWeight: 600, color: 'var(--text)' }}>{order.paymentReference}</span>
         </div>
       )}
 
@@ -216,7 +221,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
         <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
 
           {/* Confirmar / Rechazar pago */}
-          {order.status === 'PAYMENT_UPLOADED' && (
+          {(order.status === 'PAYMENT_UPLOADED' ||
+            (order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'PAGO_MOVIL' && order.paymentReference)) && (
             <div className="flex gap-1">
               <button className="btn btn-sm btn-success" style={{ flex: 1 }}
                 disabled={loading} onClick={() => doAction('PAYMENT_CONFIRMED')}>
