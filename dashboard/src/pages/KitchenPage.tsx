@@ -146,6 +146,7 @@ export default function KitchenPage() {
     const token = localStorage.getItem('kitchen_token');
     const socket = io(import.meta.env.VITE_API_URL ?? '', {
       path: '/ws',
+      transports: ['websocket'],
       auth: { token },
     });
     socketRef.current = socket;

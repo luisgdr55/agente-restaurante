@@ -8,6 +8,7 @@ export function getSocket(): Socket {
     const token = localStorage.getItem('token');
     socket = io(import.meta.env.VITE_API_URL ?? '', {
       path: '/ws',
+      transports: ['websocket'],
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
