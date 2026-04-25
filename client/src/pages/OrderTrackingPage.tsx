@@ -35,7 +35,7 @@ export function clearActiveOrder() {
 
 // ── Phase config ───────────────────────────────────────────────────────────
 
-const PHASES = [
+const DELIVERY_PHASES = [
   { icon: '📋', label: 'Recibido' },
   { icon: '✅', label: 'Pago' },
   { icon: '👨‍🍳', label: 'Cocina' },
@@ -43,7 +43,31 @@ const PHASES = [
   { icon: '🎉', label: 'Entregado' },
 ]
 
-function statusToPhase(status: string): number {
+const PICKUP_PHASES = [
+  { icon: '📋', label: 'Recibido' },
+  { icon: '✅', label: 'Pago' },
+  { icon: '👨‍🍳', label: 'Cocina' },
+  { icon: '🎉', label: 'Entregado' },
+]
+
+type Phase = { icon: string; label: string }
+
+function getPhasesFor(deliveryType: string | null): Phase[] {
+  return deliveryType === 'PICKUP' ? PICKUP_PHASES : DELIVERY_PHASES
+}
+
+function statusToPhase(status: string, deliveryType: string | null): number {
+  if (deliveryType === 'PICKUP') {
+    switch (status) {
+      case 'PENDING_PAYMENT':
+      case 'PAYMENT_UPLOADED':        return 0
+      case 'PAYMENT_CONFIRMED':       return 1
+      case 'IN_KITCHEN':
+      case 'READY':                   return 2
+      case 'DELIVERED':               return 3
+      default:                        return 0
+    }
+  }
   switch (status) {
     case 'PENDING_PAYMENT':
     case 'PAYMENT_UPLOADED':          return 0
@@ -61,7 +85,7 @@ const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED']
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
 
-function ProgressBar({ phase, prevPhase }: { phase: number; prevPhase: number }) {
+function ProgressBar({ phase, prevPhase, phases }: { phase: number; prevPhase: number; phases: Phase[] }) {
   const [animPhase, setAnimPhase] = useState(prevPhase)
 
   useEffect(() => {
@@ -81,13 +105,13 @@ function ProgressBar({ phase, prevPhase }: { phase: number; prevPhase: number })
         <div style={{
           position: 'absolute', top: '50%', left: '10%',
           height: 3,
-          width: `${(animPhase / (PHASES.length - 1)) * 80}%`,
+          width: `${(animPhase / (phases.length - 1)) * 80}%`,
           background: 'linear-gradient(90deg, #10b981, #F5C518)',
           transform: 'translateY(-50%)', zIndex: 1,
           transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
         }} />
 
-        {PHASES.map((p, i) => {
+        {phases.map((p, i) => {
           const done = i < animPhase
           const active = i === animPhase
           const pending = i > animPhase
@@ -144,7 +168,7 @@ export default function OrderTrackingPage() {
       const o = await publicApi.getOrderTracking(orderId!)
       setOrder(o)
       setPrevPhase((p) => p)
-      setPhase(statusToPhase(o.status))
+      setPhase(statusToPhase(o.status, o.deliveryType))
       setError('')
 
       // Update localStorage status
@@ -361,14 +385,14 @@ export default function OrderTrackingPage() {
 
         {/* ── Progress bar (all non-cancelled statuses) ── */}
         {!isCancelled && !isRejected && (
-          <ProgressBar phase={phase} prevPhase={prevPhase} />
+          <ProgressBar phase={phase} prevPhase={prevPhase} phases={getPhasesFor(order.deliveryType)} />
         )}
 
         {/* ── Status label ── */}
         {!isCancelled && !isRejected && (
           <div style={{ textAlign: 'center', padding: '0 1rem 1rem' }}>
             <p style={{ fontWeight: 700, fontSize: '1rem', color: isDelivered ? '#10b981' : 'var(--accent)' }}>
-              {statusLabel(order.status)}
+              {statusLabel(order.status, order.deliveryType)}
             </p>
             {!isDelivered && (
               <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
@@ -433,13 +457,16 @@ export default function OrderTrackingPage() {
   )
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, deliveryType: string | null): string {
   switch (status) {
     case 'PENDING_PAYMENT':            return '⏳ Esperando confirmación de pago'
     case 'PAYMENT_UPLOADED':           return '📤 Comprobante enviado, revisando...'
     case 'PAYMENT_CONFIRMED':          return '✅ Pago confirmado'
     case 'IN_KITCHEN':                 return '👨‍🍳 Tu pedido está en cocina'
-    case 'READY':                      return '🍗 ¡Listo! Preparando envío'
+    case 'READY':
+      return deliveryType === 'PICKUP'
+        ? '🏪 ¡Tu pedido está listo! Pasa a retirarlo'
+        : '🍗 ¡Listo! Preparando envío'
     case 'AWAITING_DRIVER_ASSIGNMENT': return '🛵 Asignando motorizado...'
     case 'OUT_FOR_DELIVERY':           return '🛵 Tu pedido va en camino'
     case 'DELIVERED':                  return '🎉 ¡Pedido entregado!'

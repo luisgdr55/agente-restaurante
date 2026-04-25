@@ -1707,8 +1707,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
       });
       if (!order) return reply.code(404).send({ error: 'Pedido no encontrado' });
       if (order.status === 'DELIVERED') return { ok: true, message: 'Ya estaba entregado' };
-      if (order.status !== 'OUT_FOR_DELIVERY') {
-        return reply.code(409).send({ error: 'El pedido no está en camino' });
+      const validForDelivery = order.status === 'OUT_FOR_DELIVERY' ||
+        (order.status === 'READY' && order.deliveryType === 'PICKUP');
+      if (!validForDelivery) {
+        return reply.code(409).send({ error: 'El pedido no está en un estado válido para confirmar entrega' });
       }
 
       // Cerrar pedido
