@@ -64,6 +64,7 @@ export default function CheckoutPage() {
   const [useSaved, setUseSaved] = useState(false)
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
+  const [proofError, setProofError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -105,15 +106,17 @@ export default function CheckoutPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setProofFile(file)
-    const preview = URL.createObjectURL(file)
-    setProofPreview(preview)
+    setProofPreview(URL.createObjectURL(file))
+    setProofError('')
   }
 
   const handleSubmit = async () => {
     setError('')
+    setProofError('')
     if (!name.trim()) { setError('Ingresa tu nombre'); return }
     if (!phone.trim()) { setError('Ingresa tu teléfono'); return }
     if (deliveryType === 'DELIVERY' && !address.trim()) { setError('Ingresa tu dirección'); return }
+    if (!proofFile) { setProofError('Debes subir el comprobante de pago'); return }
 
     setSubmitting(true)
     try {
@@ -343,10 +346,10 @@ export default function CheckoutPage() {
         {/* ── Upload comprobante ── */}
         <section style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>
-            Comprobante de pago <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(opcional)</span>
+            Comprobante de pago *
           </label>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-            Sube la captura de tu pago para confirmar más rápido
+            Sube la captura de tu pago para confirmar tu pedido
           </p>
           <input
             ref={fileInputRef}
@@ -377,13 +380,17 @@ export default function CheckoutPage() {
               onClick={() => fileInputRef.current?.click()}
               style={{
                 width: '100%', padding: '0.85rem',
-                background: 'var(--surface)', border: '2px dashed #3A3A3A',
-                borderRadius: 10, color: 'var(--text-muted)',
+                background: 'var(--surface)',
+                border: `2px dashed ${proofError ? '#ef4444' : '#3A3A3A'}`,
+                borderRadius: 10, color: proofError ? '#ef4444' : 'var(--text-muted)',
                 fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
               }}
             >
               📷 Subir foto del comprobante
             </button>
+          )}
+          {proofError && (
+            <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.4rem' }}>{proofError}</p>
           )}
         </section>
 
