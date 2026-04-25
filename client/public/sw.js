@@ -1,5 +1,4 @@
-const CACHE_VERSION = 7;
-const CACHE_NAME = `yebrams-v${CACHE_VERSION}`;
+const CACHE_NAME = 'yebrams-__VITE_BUILD_HASH__';
 
 // ── Install ────────────────────────────────────────────────────────────────
 // NO llamamos skipWaiting aquí — el usuario decide cuándo actualizar via toast
