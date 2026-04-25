@@ -8,6 +8,43 @@ import type { Order, Stats } from '../api/api';
 
 const POLL_INTERVAL = 30_000; // 30s fallback polling
 
+function playNewOrderAlert() {
+  try {
+    const ctx = new AudioContext();
+    // 3 beeps ascendentes: 880 Hz → 1046 Hz → 1318 Hz (A5 → C6 → E6)
+    const freqs = [880, 1046, 1318];
+    const beepDuration = 0.12;   // segundos por beep
+    const gap = 0.07;            // silencio entre beeps
+
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const start = ctx.currentTime + i * (beepDuration + gap);
+      const end = start + beepDuration;
+
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.4, start + 0.01); // fade in rápido
+      gain.gain.setValueAtTime(0.4, end - 0.02);
+      gain.gain.linearRampToValueAtTime(0, end);             // fade out suave
+
+      osc.start(start);
+      osc.stop(end);
+    });
+
+    // Cierra el contexto tras el último beep
+    const totalDuration = freqs.length * (beepDuration + gap) + 0.1;
+    setTimeout(() => void ctx.close(), totalDuration * 1000);
+  } catch {
+    // Web Audio no disponible — falla silenciosamente
+  }
+}
+
 export default function DashboardPage() {
   const stats       = useStore((s) => s.stats);
   const orders      = useStore((s) => s.orders);
@@ -40,6 +77,7 @@ export default function DashboardPage() {
 
     const onOrderNew = ({ order }: { order: Order }) => {
       upsertOrder(order);
+      playNewOrderAlert();
       void statsApi.get().then(setStats).catch(() => undefined);
     };
 
