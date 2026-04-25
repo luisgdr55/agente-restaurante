@@ -239,10 +239,14 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 
 ## Pendientes próxima sesión
 
-- [ ] Menú: agregar categoría "Bebidas" con imagen del menú visual
-      (el usuario la enviará en la próxima sesión)
-- [ ] Verificar que el botón "Cancelar pedido" funciona en móvil tras
-      el fix de CORS explícito (era el único pendiente de confirmar)
+- [ ] **Bug**: Dashboard botón "Ver comprobante" aún requiere F5 — verificar si
+      el fix de `serializeOrder()` quedó completo en todos los emit paths
+- [ ] **Validación**: comprobante obligatorio en Checkout antes de confirmar pedido
+- [ ] **Rediseño UX**: animaciones y estilo general de la PWA
+- [ ] **UX**: mensaje `PAYMENT_REJECTED` menos agresivo — reemplazar X roja grande
+      por algo más sutil (ej. banner amarillo de advertencia)
+- [ ] **Feature 9**: GPS del cliente en Checkout
+- [ ] **Menú**: agregar categoría "Bebidas" con imagen (el usuario la enviará)
 
 ## Notas de deploy (Railway)
 
