@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-23
+Última actualización: 2026-04-25
 
 ## Infraestructura deployada
 | Servicio | URL | Estado |
@@ -181,14 +181,68 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - Fix: `baseURL` en `api.ts` y llamadas en `NotificationModal.tsx` y `MenuPage.tsx`
   usan URL absoluta con fallback `https://yebrams.up.railway.app`
 
+## Sesión 2026-04-25 — Fixes post-deploy PWA + CORS + SW hash automático ✅
+
+### Fix: hasPaymentImage faltaba en eventos socket ✅
+- **Root cause**: `emitOrderUpdated` y `emitOrderNew` pasaban el objeto Prisma crudo
+  (con `paymentImageUrl` como string o null) en lugar del objeto serializado
+  que el dashboard espera (`hasPaymentImage: boolean`)
+- **Fix dashboard.routes.ts**: nueva función `serializeOrder()` (singular) que
+  elimina `paymentImageUrl` y añade `hasPaymentImage: Boolean(paymentImageUrl)`;
+  aplicada en los 6 `emitOrderUpdated()` del archivo
+- **Fix order-service.ts**: helper `stripPaymentImage()` aplicado a `emitOrderNew`
+  y `emitOrderUpdated` en `createOrder()` y `updateOrderStatus()`
+- Resultado: botón "Ver comprobante" aparece en tiempo real sin necesidad de F5
+
+### Fix: 413 Payload Too Large al subir comprobante ✅
+- **Root cause**: Fastify tiene bodyLimit de 1 MB por defecto; imágenes de móvil
+  superan ese límite fácilmente en base64
+- **Fix backend** (`src/index.ts`): `bodyLimit: 10 * 1024 * 1024` (10 MB)
+- **Fix cliente** (`CheckoutPage.tsx`): compresión canvas antes de base64 —
+  resize a max 1200px, calidad JPEG 0.7; función `compressAndEncode()`
+
+### Fix: tracking page no actualizaba en tiempo real ✅
+- **Root cause**: `OrderTrackingPage.tsx` usaba `axios` con URLs relativas (`/api/...`)
+  — `serve` no tiene proxy, las peticiones iban a la PWA en lugar del backend
+- **Fix**: migrado a `publicApi` (misma instancia de api.ts con baseURL absoluta)
+
+### Fix: SW cache no se invalidaba en móvil ✅
+- **Root cause**: `CACHE_VERSION` era la misma entre deploys; el browser veía el
+  mismo SW y no activaba el ciclo de actualización
+- **Fixes iterativos**: bumps manuales 4→5→6→7, luego solución permanente:
+
+### Mejora: hash de build automático en Service Worker ✅
+- **Problema**: había que incrementar `CACHE_VERSION` manualmente en cada deploy
+- **Solución** (`client/vite.config.ts`): plugin Vite `inject-sw-hash` que en
+  `closeBundle` lee `dist/sw.js` y reemplaza el placeholder `__VITE_BUILD_HASH__`
+  con `Date.now()` generado al inicio del build
+- **`client/public/sw.js`**: eliminadas las líneas `CACHE_VERSION`/`CACHE_NAME`;
+  ahora tiene `const CACHE_NAME = 'yebrams-__VITE_BUILD_HASH__';`
+- Cada deploy Railway genera un cache key único sin intervención manual
+- Verificado: `sw.js` en producción muestra `yebrams-1777077668461`
+
+### Fix: botón cancelar silencioso en PWA standalone ✅
+- **Root cause**: `window.confirm()` está bloqueado en PWA standalone mode en
+  móviles (retorna false sin mostrar nada)
+- **Fix**: reemplazado por modal inline React con estado `cancelConfirmOpen`;
+  botones "Sí, cancelar" y "No, volver" dentro del propio componente
+
+### Fix: URLs relativas en DriverPage y ReviewPage ✅
+- `DriverPage.tsx` y `ReviewPage.tsx` usaban `fetch('/api/public/...')` relativo
+- Migrados a `publicApi` (axios con baseURL absoluta) igual que `OrderTrackingPage`
+- Eliminada interfaz `OrderInfo` local en DriverPage (usa `OrderPublic` de api.ts)
+
+### Fix: CORS métodos explícitos ✅
+- `src/index.ts`: añadidos `methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS']`
+  y `preflightContinue: false` al plugin `@fastify/cors`
+- Garantiza que preflight OPTIONS del DELETE no caiga en 404
+
 ## Pendientes próxima sesión
 
-- [ ] Dashboard: botón "Ver comprobante" aparece solo después de F5
-      — el socket orderUpdated no está actualizando hasPaymentImage
-      en el estado local de React
 - [ ] Menú: agregar categoría "Bebidas" con imagen del menú visual
       (el usuario la enviará en la próxima sesión)
-- [ ] Feature 9 GPS pendiente de implementar
+- [ ] Verificar que el botón "Cancelar pedido" funciona en móvil tras
+      el fix de CORS explícito (era el único pendiente de confirmar)
 
 ## Notas de deploy (Railway)
 
