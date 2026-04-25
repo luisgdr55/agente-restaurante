@@ -144,7 +144,7 @@ export default function KitchenPage() {
     void load();
 
     const token = localStorage.getItem('kitchen_token');
-    const socket = io(import.meta.env.VITE_API_URL ?? '', {
+    const socket = io(import.meta.env.VITE_API_URL ?? 'https://yebrams.up.railway.app', {
       path: '/ws',
       transports: ['websocket'],
       auth: { token },

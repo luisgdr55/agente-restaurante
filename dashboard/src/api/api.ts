@@ -198,7 +198,7 @@ export const analyticsApi = {
 };
 
 // ── Kitchen API (separate axios instance with kitchen_token) ──────────────
-const kitchenAxios = axios.create({ baseURL: '/api' });
+const kitchenAxios = axios.create({ baseURL: `${BACKEND}/api` });
 kitchenAxios.interceptors.request.use((config) => {
   const token = localStorage.getItem('kitchen_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
