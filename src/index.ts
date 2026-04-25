@@ -30,6 +30,8 @@ async function bootstrap() {
       ? [/\.up\.railway\.app$/, /localhost/]
       : true,
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    preflightContinue: false,
   });
 
   await app.register(helmet, {
