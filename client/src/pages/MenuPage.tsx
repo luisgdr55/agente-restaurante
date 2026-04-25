@@ -19,6 +19,36 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 
 const HERO_BG = 'https://raw.githubusercontent.com/luisgdr55/agente-restaurante/master/public/menu-images/layebrams.jpg'
 
+const MENU_STYLES = `
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes heroPulse {
+  0%, 100% { box-shadow: 0 4px 24px rgba(245,197,24,0.45); }
+  50%       { box-shadow: 0 4px 40px rgba(245,197,24,0.8); }
+}
+@keyframes gridFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cartBounce {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.4); }
+  65%  { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50%       { transform: translateY(6px); opacity: 0.7; }
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+`
+
 function ItemPlaceholder() {
   return (
     <div style={{
@@ -38,13 +68,18 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
+  const [cartClosing, setCartClosing] = useState(false)
   const [heroError, setHeroError] = useState(false)
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [touchedCard, setTouchedCard] = useState<string | null>(null)
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null)
   const [notifLoading, setNotifLoading] = useState(false)
+  const [heroHovered, setHeroHovered] = useState(false)
+  const [addingId, setAddingId] = useState<string | null>(null)
+  const [countBouncing, setCountBouncing] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const prevCountRef = useRef(0)
   const { items, add, remove, clear, total, count } = useCart()
   const navigate = useNavigate()
 
@@ -57,11 +92,36 @@ export default function MenuPage() {
         if (menuData.length > 0) setActiveCategory(menuData[0].id)
       })
       .finally(() => setLoading(false))
-    // Check notification permission on mount
     if ('Notification' in window) {
       setNotifPermission(Notification.permission)
     }
   }, [])
+
+  // Bounce cart counter when an item is added
+  useEffect(() => {
+    if (count > prevCountRef.current) {
+      setCountBouncing(true)
+      const t = setTimeout(() => setCountBouncing(false), 420)
+      prevCountRef.current = count
+      return () => clearTimeout(t)
+    }
+    prevCountRef.current = count
+  }, [count])
+
+  const handleCartClose = () => {
+    setCartClosing(true)
+    setTimeout(() => {
+      setCartOpen(false)
+      setCartClosing(false)
+    }, 200)
+  }
+
+  const handleAddWithFeedback = (item: MenuItem) => {
+    const priceUsd = parseFloat(item.priceUsd)
+    add({ id: item.id, name: item.name, priceUsd, imageUrl: item.imageUrl })
+    setAddingId(item.id)
+    setTimeout(() => setAddingId(null), 150)
+  }
 
   const handleEnableNotifications = async () => {
     if (!config?.vapidPublicKey) return
@@ -91,8 +151,8 @@ export default function MenuPage() {
     if (items.length === 0) return
     sessionStorage.setItem('yebrams_checkout_cart', JSON.stringify(items))
     sessionStorage.setItem('yebrams_checkout_config', JSON.stringify(config))
-    setCartOpen(false)
-    navigate('/checkout')
+    handleCartClose()
+    setTimeout(() => navigate('/checkout'), 200)
   }
 
   const deliveryFeeUsd = parseFloat(config?.DELIVERY_FEE_USD ?? '1.50')
@@ -151,6 +211,8 @@ export default function MenuPage() {
 
   return (
     <Layout cartCount={count} onCartClick={() => setCartOpen(true)}>
+      <style>{MENU_STYLES}</style>
+
       {/* ── Hero — ocupa el 100% del viewport ── */}
       <div style={{
         position: 'relative',
@@ -163,7 +225,6 @@ export default function MenuPage() {
           ? 'linear-gradient(160deg, #1A1A1A 0%, #2A2A2A 60%, #1A1A1A 100%)'
           : undefined,
       }}>
-        {/* Background image — <img> tag, no CSS background-image */}
         {!heroError && (
           <img
             src={HERO_BG}
@@ -202,6 +263,7 @@ export default function MenuPage() {
             lineHeight: 1.0,
             marginBottom: '0.4rem',
             textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+            animation: 'fadeInDown 0.6s ease-out both',
           }}>
             Yebram's
           </h1>
@@ -213,6 +275,7 @@ export default function MenuPage() {
             textTransform: 'uppercase',
             marginBottom: '1.75rem',
             textShadow: '0 1px 8px rgba(0,0,0,0.7)',
+            animation: 'fadeIn 0.6s ease-out 0.3s both',
           }}>
             Tu menú super crujiente
           </p>
@@ -220,15 +283,19 @@ export default function MenuPage() {
           <div>
             <button
               onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onMouseEnter={() => setHeroHovered(true)}
+              onMouseLeave={() => setHeroHovered(false)}
               style={{
                 padding: '0.9rem 2.5rem',
                 background: '#F5C518',
                 color: '#000',
                 borderRadius: 30,
                 fontWeight: 800,
-                fontSize: '1rem',
+                fontSize: '1.05rem',
                 letterSpacing: '0.02em',
-                boxShadow: '0 4px 24px rgba(245,197,24,0.5)',
+                animation: 'heroPulse 2.5s ease-in-out infinite',
+                transform: heroHovered ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 0.2s ease',
               }}
             >
               Ver menú ↓
@@ -241,15 +308,9 @@ export default function MenuPage() {
           position: 'absolute', bottom: '1.5rem',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem',
           opacity: 0.5,
-          animation: 'bounce 2s infinite',
+          animation: 'scrollBounce 2s infinite',
         }}>
           <div style={{ width: 1, height: 28, background: '#F5C518' }} />
-          <style>{`
-            @keyframes bounce {
-              0%, 100% { transform: translateY(0); opacity: 0.4; }
-              50%       { transform: translateY(6px); opacity: 0.7; }
-            }
-          `}</style>
         </div>
       </div>
 
@@ -290,13 +351,17 @@ export default function MenuPage() {
       </div>
 
       {/* ── Items grid ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
-        gap: '1rem',
-        padding: '1.1rem',
-        paddingBottom: count > 0 ? '5.5rem' : '1.5rem',
-      }}>
+      <div
+        key={activeCategory ?? ''}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
+          gap: '1rem',
+          padding: '1.1rem',
+          paddingBottom: count > 0 ? '5.5rem' : '1.5rem',
+          animation: 'gridFadeIn 0.25s ease-out both',
+        }}
+      >
         {activeItems.map((item) => {
           const inCart = items.find((i) => i.id === item.id)
           const priceUsd = parseFloat(item.priceUsd)
@@ -323,9 +388,10 @@ export default function MenuPage() {
                   : inCart
                     ? '1.5px solid rgba(245,197,24,0.7)'
                     : '1.5px solid rgba(255,255,255,0.05)',
-                transition: 'border 0.2s, box-shadow 0.2s',
+                transition: 'border 0.2s, box-shadow 0.2s, transform 0.2s',
+                transform: isNeon ? 'translateY(-4px)' : 'translateY(0)',
                 boxShadow: isNeon
-                  ? '0 0 8px #F5C518, 0 0 20px rgba(245,197,24,0.4)'
+                  ? '0 8px 24px rgba(245,197,24,0.2), 0 0 8px #F5C518'
                   : inCart
                     ? '0 0 16px rgba(245,197,24,0.12)'
                     : '0 2px 8px rgba(0,0,0,0.3)',
@@ -365,7 +431,7 @@ export default function MenuPage() {
                 </p>
               </div>
 
-              {/* Add/remove — stop propagation para no abrir el sheet al tocar los botones */}
+              {/* Add/remove */}
               <div
                 style={{ padding: '0 0.75rem 0.75rem' }}
                 onClick={(e) => e.stopPropagation()}
@@ -387,22 +453,30 @@ export default function MenuPage() {
                       {inCart.quantity}
                     </span>
                     <button
-                      onClick={() => add({ id: item.id, name: item.name, priceUsd, imageUrl: item.imageUrl })}
+                      onClick={() => {
+                        add({ id: item.id, name: item.name, priceUsd, imageUrl: item.imageUrl })
+                        setAddingId(item.id)
+                        setTimeout(() => setAddingId(null), 150)
+                      }}
                       style={{
                         width: 30, height: 30, borderRadius: '50%',
                         background: 'var(--accent)', color: '#000',
                         fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800,
+                        transform: addingId === item.id ? 'scale(0.82)' : 'scale(1)',
+                        transition: 'transform 0.15s ease',
                       }}
                     >+</button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => add({ id: item.id, name: item.name, priceUsd, imageUrl: item.imageUrl })}
+                    onClick={() => handleAddWithFeedback(item)}
                     style={{
                       width: '100%', padding: '0.5rem',
                       background: 'var(--accent)', color: '#000',
                       borderRadius: 8, fontWeight: 800, fontSize: '0.85rem',
+                      transform: addingId === item.id ? 'scale(0.92)' : 'scale(1)',
+                      transition: 'transform 0.15s ease',
                     }}
                   >
                     Agregar
@@ -414,7 +488,7 @@ export default function MenuPage() {
         })}
       </div>
 
-      {/* ── Push notification prompt (desktop / users who skipped) ── */}
+      {/* ── Push notification prompt ── */}
       {notifPermission === 'default'
         && config?.vapidPublicKey
         && localStorage.getItem('yebrams_last_phone')
@@ -448,26 +522,19 @@ export default function MenuPage() {
         paddingRight: '1.25rem',
         textAlign: 'center',
       }}>
-        {/* Separador dorado sutil */}
         <div style={{
           width: '48px', height: '1px',
           background: 'rgba(245,197,24,0.2)',
           margin: '0 auto 1.25rem',
         }} />
-
-        {/* Línea técnica */}
         <p style={{ fontSize: '11px', color: '#555', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>
           <span style={{ opacity: 0.5 }}>&lt;/&gt;</span>
           {'  '}⚡ Potenciado por tecnología
         </p>
-
-        {/* Crédito */}
         <p style={{ fontSize: '12px', color: '#888', marginBottom: '1rem' }}>
           Desarrollado por{' '}
           <span style={{ color: '#F5C518', fontWeight: 700 }}>Luis</span>
         </p>
-
-        {/* CTA chip */}
         <a
           href="https://wa.me/584165434760?text=Hola%20Luis!%20Vi%20tu%20trabajo%20en%20Yebram's%20y%20me%20interesa%20un%20sistema%20as%C3%AD%20para%20mi%20negocio%20%F0%9F%8D%BD%EF%B8%8F"
           target="_blank"
@@ -520,6 +587,8 @@ export default function MenuPage() {
               borderRadius: 20,
               padding: '0.15rem 0.6rem',
               fontSize: '0.82rem', fontWeight: 800,
+              display: 'inline-block',
+              animation: countBouncing ? 'cartBounce 0.42s ease-out' : 'none',
             }}>{count} {count === 1 ? 'ítem' : 'ítems'}</span>
             <span>Ver pedido</span>
             <span style={{ fontWeight: 800 }}>${total.toFixed(2)}</span>
@@ -549,8 +618,9 @@ export default function MenuPage() {
           onAdd={add}
           onRemove={remove}
           onClear={clear}
-          onClose={() => setCartOpen(false)}
+          onClose={handleCartClose}
           onCheckout={handleCheckout}
+          closing={cartClosing}
         />
       )}
     </Layout>

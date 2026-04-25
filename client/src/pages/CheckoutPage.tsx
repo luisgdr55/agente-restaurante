@@ -180,8 +180,25 @@ export default function CheckoutPage() {
 
   if (cart.length === 0) return null
 
+  const CHECKOUT_STYLES = `
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes heroPulse {
+      0%, 100% { box-shadow: 0 4px 24px rgba(245,197,24,0.4); }
+      50%       { box-shadow: 0 4px 40px rgba(245,197,24,0.78); }
+    }
+    .checkout-input:focus, .checkout-textarea:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px rgba(245,197,24,0.15) !important;
+      outline: none;
+    }
+  `
+
   return (
     <Layout>
+      <style>{CHECKOUT_STYLES}</style>
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '1.25rem 1rem 5rem' }}>
         <button
           onClick={() => navigate('/')}
@@ -193,7 +210,7 @@ export default function CheckoutPage() {
         <h1 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '1.5rem' }}>Confirmar pedido</h1>
 
         {/* ── Resumen ── */}
-        <section style={{ background: 'var(--surface)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem' }}>
+        <section style={{ background: 'var(--surface)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem', animation: 'fadeInUp 0.45s ease-out 0ms both' }}>
           <h2 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tu pedido</h2>
           {cart.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
@@ -216,7 +233,7 @@ export default function CheckoutPage() {
         </section>
 
         {/* ── Tipo de entrega ── */}
-        <section style={{ marginBottom: '1.25rem' }}>
+        <section style={{ marginBottom: '1.25rem', animation: 'fadeInUp 0.45s ease-out 80ms both' }}>
           <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.6rem' }}>Tipo de entrega</label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {(['DELIVERY', 'PICKUP'] as const).map((type) => (
@@ -240,14 +257,15 @@ export default function CheckoutPage() {
         </section>
 
         {/* ── Datos personales ── */}
-        <section style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <section style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', animation: 'fadeInUp 0.45s ease-out 160ms both' }}>
           <div>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>Nombre *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre completo" />
+            <input className="checkout-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre completo" />
           </div>
           <div>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>Teléfono *</label>
             <input
+              className="checkout-input"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -304,6 +322,7 @@ export default function CheckoutPage() {
               {/* Manual address textarea — shown when no savedAddr or user chose "Ingresar otra" */}
               {(!savedAddr || !useSaved) && (
                 <textarea
+                  className="checkout-textarea"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Calle, sector, referencia..."
@@ -313,6 +332,7 @@ export default function CheckoutPage() {
                     border: '1px solid #3A3A3A', borderRadius: 8,
                     padding: '0.6rem 0.85rem', color: 'var(--text)',
                     fontSize: '1rem', resize: 'vertical', outline: 'none',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
                   }}
                 />
               )}
@@ -322,7 +342,7 @@ export default function CheckoutPage() {
 
         {/* ── Datos pago móvil ── */}
         {config && (
-          <section style={{ background: 'var(--surface)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem' }}>
+          <section style={{ background: 'var(--surface)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem', animation: 'fadeInUp 0.45s ease-out 240ms both' }}>
             <h2 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               📱 Datos de pago móvil
             </h2>
@@ -344,7 +364,7 @@ export default function CheckoutPage() {
         )}
 
         {/* ── Upload comprobante ── */}
-        <section style={{ marginBottom: '1.5rem' }}>
+        <section style={{ marginBottom: '1.5rem', animation: 'fadeInUp 0.45s ease-out 320ms both' }}>
           <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>
             Comprobante de pago *
           </label>
@@ -408,6 +428,8 @@ export default function CheckoutPage() {
             color: '#000', borderRadius: 12,
             fontWeight: 700, fontSize: '1.05rem',
             opacity: submitting ? 0.7 : 1,
+            animation: submitting ? 'none' : 'heroPulse 2.5s ease-in-out infinite',
+            transition: 'background 0.2s, opacity 0.2s',
           }}
         >
           {submitting ? 'Procesando...' : `Confirmar pedido — $${total.toFixed(2)}`}

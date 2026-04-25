@@ -5,6 +5,7 @@ interface CartDrawerProps {
   total: number
   deliveryFeeUsd: number
   rate: number
+  closing?: boolean
   onAdd: (item: Omit<CartItem, 'quantity'>) => void
   onRemove: (id: string) => void
   onClear: () => void
@@ -12,15 +13,36 @@ interface CartDrawerProps {
   onCheckout: () => void
 }
 
+const CART_STYLES = `
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes slideDown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fadeOutBackdrop {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+`
+
 function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
   const grandTotal = total + deliveryFeeUsd
 
   return (
     <>
+      <style>{CART_STYLES}</style>
+
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -29,6 +51,9 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
           background: 'rgba(0,0,0,0.72)',
           backdropFilter: 'blur(2px)',
           zIndex: 200,
+          animation: closing
+            ? 'fadeOutBackdrop 0.2s ease-in both'
+            : 'fadeInBackdrop 0.25s ease-out both',
         }}
       />
 
@@ -41,6 +66,9 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
         maxHeight: '82vh',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+        animation: closing
+          ? 'slideDown 0.2s ease-in both'
+          : 'slideUp 0.3s ease-out both',
       }}>
         {/* Handle bar */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '0.8rem 0 0' }}>
@@ -181,14 +209,12 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
             borderTop: '1px solid rgba(255,255,255,0.08)',
             background: '#1A1A1A',
           }}>
-            {/* Subtotal row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>Subtotal</span>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>
                 ${total.toFixed(2)} | Bs {usdToBs(total, rate)}
               </span>
             </div>
-            {/* Delivery row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>Delivery</span>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>
@@ -196,10 +222,8 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, onAdd, 
               </span>
             </div>
 
-            {/* Divider */}
             <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', marginBottom: '0.85rem' }} />
 
-            {/* Total */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
               <span style={{ fontWeight: 800, fontSize: '1rem' }}>Total</span>
               <div style={{ textAlign: 'right' }}>
