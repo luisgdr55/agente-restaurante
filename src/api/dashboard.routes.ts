@@ -1569,10 +1569,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
       address?: string;
       items: { menuItemId: string; quantity: number }[];
       proofImageBase64?: string;
+      paymentMethod?: 'PAGO_MOVIL' | 'CASH';
+      paymentReference?: string;
     };
   }>('/api/public/orders', async (req, reply) => {
     try {
-      const { customerName, phone, deliveryType, address, items, proofImageBase64 } = req.body;
+      const { customerName, phone, deliveryType, address, items, proofImageBase64,
+              paymentMethod, paymentReference } = req.body;
 
       if (!customerName?.trim()) return reply.code(400).send({ error: 'customerName is required' });
       if (!phone?.trim()) return reply.code(400).send({ error: 'phone is required' });
@@ -1623,17 +1626,26 @@ export async function dashboardRoutes(app: FastifyInstance) {
         ? parseFloat((await getConfig('DELIVERY_FEE_USD')) ?? '1.50')
         : 0;
 
+      const isCash = paymentMethod === 'CASH' && deliveryType === 'PICKUP';
+
       const order = await createOrder({
         customerId: customer.id,
         cart,
         deliveryType,
         ...(address ? { deliveryAddress: address.trim() } : {}),
-        paymentMethod: 'PAGO_MOVIL',
+        paymentMethod: isCash ? 'CASH_ON_DELIVERY' : 'PAGO_MOVIL',
         deliveryFeeUsd,
-        ...(proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
+        ...(!isCash && proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
       });
 
-      const targetStatus = proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
+      if (paymentReference?.trim()) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { paymentReference: paymentReference.trim() },
+        });
+      }
+
+      const targetStatus = !isCash && proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
       await updateOrderStatus(order.id, targetStatus);
 
       const full = await prisma.order.findUnique({

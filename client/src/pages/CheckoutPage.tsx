@@ -4,7 +4,6 @@ import { publicApi, type PublicConfig } from '../api/api'
 import type { CartItem } from '../store/cart'
 import Layout from '../components/Layout'
 
-// Normalize Venezuelan phone to international format for the API lookup
 function normalizePhoneForLookup(raw: string): string {
   const digits = raw.replace(/\D/g, '')
   if (digits.startsWith('04') && digits.length === 11) return '58' + digits.slice(1)
@@ -42,7 +41,6 @@ function compressAndEncode(file: File, maxPx = 1200, quality = 0.7): Promise<str
 export default function CheckoutPage() {
   const navigate = useNavigate()
 
-  // Load cart + config from sessionStorage
   const [cart] = useState<CartItem[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('yebrams_checkout_cart') ?? '[]') }
     catch { return [] }
@@ -55,42 +53,40 @@ export default function CheckoutPage() {
   const rate = parseFloat(config?.USD_TO_BS_RATE ?? '36.50')
   const deliveryFeeUsd = parseFloat(config?.DELIVERY_FEE_USD ?? '1.50')
 
-  // Form state — pre-filled from localStorage if returning customer
   const [name, setName] = useState(() => localStorage.getItem('yebrams_customer_name') ?? '')
   const [phone, setPhone] = useState(() => localStorage.getItem('yebrams_customer_phone') ?? '')
   const [deliveryType, setDeliveryType] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY')
   const [address, setAddress] = useState(() => localStorage.getItem('yebrams_customer_address') ?? '')
   const [savedAddr, setSavedAddr] = useState<string | null>(null)
   const [useSaved, setUseSaved] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'PAGO_MOVIL' | 'CASH'>('PAGO_MOVIL')
+  const [paymentRef, setPaymentRef] = useState('')
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
   const [proofError, setProofError] = useState('')
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Redirect if cart empty
   useEffect(() => {
     if (cart.length === 0) navigate('/', { replace: true })
   }, [cart, navigate])
 
-  // Fetch saved address when phone is filled (debounced 600ms)
+  // Reset to pago móvil when switching to delivery
+  useEffect(() => {
+    if (deliveryType === 'DELIVERY') setPaymentMethod('PAGO_MOVIL')
+  }, [deliveryType])
+
   useEffect(() => {
     const digits = phone.replace(/\D/g, '')
-    if (digits.length < 10) {
-      setSavedAddr(null)
-      setUseSaved(false)
-      return
-    }
+    if (digits.length < 10) { setSavedAddr(null); setUseSaved(false); return }
     const timer = setTimeout(() => {
       const normalized = normalizePhoneForLookup(phone)
       publicApi.getSavedAddress(normalized)
         .then((addr) => {
           setSavedAddr(addr)
-          if (addr && !address) {
-            setAddress(addr)
-            setUseSaved(true)
-          }
+          if (addr && !address) { setAddress(addr); setUseSaved(true) }
         })
         .catch(() => { /* non-critical */ })
     }, 600)
@@ -101,6 +97,25 @@ export default function CheckoutPage() {
   const subtotal = cart.reduce((s, i) => s + i.priceUsd * i.quantity, 0)
   const fee = deliveryType === 'DELIVERY' ? deliveryFeeUsd : 0
   const total = subtotal + fee
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 1500)
+    }).catch(() => {})
+  }
+
+  const pagoMovilRows = config ? [
+    { label: 'Banco',       value: config.PAGO_MOVIL_BANK },
+    { label: 'Teléfono',    value: config.PAGO_MOVIL_PHONE },
+    { label: 'Titular',     value: config.PAGO_MOVIL_HOLDER },
+    { label: 'RIF / Cédula',value: config.PAGO_MOVIL_RIF },
+    { label: 'Monto',       value: `Bs ${usdToBs(total, rate)}` },
+  ] : []
+
+  const copyAllText = pagoMovilRows
+    .map(({ label, value }) => `${label}: ${value}`)
+    .join('\n')
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -116,12 +131,15 @@ export default function CheckoutPage() {
     if (!name.trim()) { setError('Ingresa tu nombre'); return }
     if (!phone.trim()) { setError('Ingresa tu teléfono'); return }
     if (deliveryType === 'DELIVERY' && !address.trim()) { setError('Ingresa tu dirección'); return }
-    if (!proofFile) { setProofError('Debes subir el comprobante de pago'); return }
+    if (paymentMethod === 'PAGO_MOVIL' && !proofFile && !paymentRef.trim()) {
+      setProofError('Sube el comprobante o ingresa el número de referencia')
+      return
+    }
 
     setSubmitting(true)
     try {
       let proofImageBase64: string | undefined
-      if (proofFile) {
+      if (paymentMethod === 'PAGO_MOVIL' && proofFile) {
         proofImageBase64 = await compressAndEncode(proofFile)
       }
 
@@ -131,15 +149,14 @@ export default function CheckoutPage() {
         deliveryType,
         ...(deliveryType === 'DELIVERY' && address.trim() ? { address: address.trim() } : {}),
         items: cart.map((i) => ({ menuItemId: i.id, quantity: i.quantity })),
+        paymentMethod,
         ...(proofImageBase64 ? { proofImageBase64 } : {}),
+        ...(paymentRef.trim() ? { paymentReference: paymentRef.trim() } : {}),
       })
 
-      // Clear cart
       sessionStorage.removeItem('yebrams_checkout_cart')
       sessionStorage.removeItem('yebrams_checkout_config')
       localStorage.removeItem('yebrams_cart')
-
-      // Persist customer data for next order
       localStorage.setItem('yebrams_last_phone', phone.trim())
       localStorage.setItem('yebrams_customer_name', name.trim())
       localStorage.setItem('yebrams_customer_phone', phone.trim())
@@ -194,6 +211,8 @@ export default function CheckoutPage() {
       box-shadow: 0 0 0 3px rgba(245,197,24,0.15) !important;
       outline: none;
     }
+    .copy-btn { transition: color 0.15s; }
+    .copy-btn:active { transform: scale(0.88); }
   `
 
   return (
@@ -241,13 +260,11 @@ export default function CheckoutPage() {
                 key={type}
                 onClick={() => setDeliveryType(type)}
                 style={{
-                  flex: 1, padding: '0.65rem',
-                  borderRadius: 10,
+                  flex: 1, padding: '0.65rem', borderRadius: 10,
                   fontWeight: 600, fontSize: '0.9rem',
                   background: deliveryType === type ? 'var(--accent)' : 'var(--surface)',
                   color: deliveryType === type ? '#000' : 'var(--text-muted)',
-                  border: '2px solid',
-                  borderColor: deliveryType === type ? 'var(--accent)' : 'transparent',
+                  border: '2px solid', borderColor: deliveryType === type ? 'var(--accent)' : 'transparent',
                 }}
               >
                 {type === 'DELIVERY' ? '🛵 Delivery' : '🏪 Retirar en local'}
@@ -255,6 +272,33 @@ export default function CheckoutPage() {
             ))}
           </div>
         </section>
+
+        {/* ── Método de pago (solo PICKUP) ── */}
+        {deliveryType === 'PICKUP' && (
+          <section style={{ marginBottom: '1.25rem', animation: 'fadeInUp 0.45s ease-out 120ms both' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.6rem' }}>Método de pago</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {([
+                { value: 'PAGO_MOVIL', label: '📱 Pago Móvil' },
+                { value: 'CASH',       label: '💵 Efectivo / Divisas' },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setPaymentMethod(value)}
+                  style={{
+                    flex: 1, padding: '0.65rem', borderRadius: 10,
+                    fontWeight: 600, fontSize: '0.85rem',
+                    background: paymentMethod === value ? 'var(--accent)' : 'var(--surface)',
+                    color: paymentMethod === value ? '#000' : 'var(--text-muted)',
+                    border: '2px solid', borderColor: paymentMethod === value ? 'var(--accent)' : 'transparent',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Datos personales ── */}
         <section style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', animation: 'fadeInUp 0.45s ease-out 160ms both' }}>
@@ -275,27 +319,18 @@ export default function CheckoutPage() {
           {deliveryType === 'DELIVERY' && (
             <div>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>Dirección de entrega *</label>
-
-              {/* Saved address card */}
               {savedAddr && (
                 <div style={{
-                  background: 'rgba(245,197,24,0.06)',
-                  border: '1px solid rgba(245,197,24,0.2)',
-                  borderRadius: 10, padding: '0.75rem 1rem',
-                  marginBottom: '0.6rem',
+                  background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.2)',
+                  borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '0.6rem',
                 }}>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                    📍 Dirección anterior
-                  </p>
-                  <p style={{ fontSize: '0.88rem', color: 'var(--text)', marginBottom: '0.6rem', lineHeight: 1.4 }}>
-                    {savedAddr}
-                  </p>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>📍 Dirección anterior</p>
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text)', marginBottom: '0.6rem', lineHeight: 1.4 }}>{savedAddr}</p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={() => { setAddress(savedAddr); setUseSaved(true) }}
                       style={{
-                        flex: 1, padding: '0.4rem 0',
-                        borderRadius: 8, fontWeight: 700, fontSize: '0.8rem',
+                        flex: 1, padding: '0.4rem 0', borderRadius: 8, fontWeight: 700, fontSize: '0.8rem',
                         background: useSaved ? 'var(--accent)' : 'rgba(245,197,24,0.12)',
                         color: useSaved ? '#000' : 'var(--accent)',
                         border: useSaved ? 'none' : '1px solid rgba(245,197,24,0.3)',
@@ -306,8 +341,7 @@ export default function CheckoutPage() {
                     <button
                       onClick={() => { setAddress(''); setUseSaved(false) }}
                       style={{
-                        flex: 1, padding: '0.4rem 0',
-                        borderRadius: 8, fontWeight: 600, fontSize: '0.8rem',
+                        flex: 1, padding: '0.4rem 0', borderRadius: 8, fontWeight: 600, fontSize: '0.8rem',
                         background: !useSaved ? 'rgba(255,255,255,0.08)' : 'transparent',
                         color: !useSaved ? 'var(--text)' : 'var(--text-muted)',
                         border: '1px solid rgba(255,255,255,0.1)',
@@ -318,8 +352,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               )}
-
-              {/* Manual address textarea — shown when no savedAddr or user chose "Ingresar otra" */}
               {(!savedAddr || !useSaved) && (
                 <textarea
                   className="checkout-textarea"
@@ -340,79 +372,131 @@ export default function CheckoutPage() {
           )}
         </section>
 
+        {/* ── Efectivo — info ── */}
+        {paymentMethod === 'CASH' && (
+          <section style={{
+            background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.25)',
+            borderRadius: 12, padding: '1rem', marginBottom: '1.25rem',
+            animation: 'fadeInUp 0.35s ease-out both',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>💵</div>
+            <p style={{ fontWeight: 700, color: '#10b981', marginBottom: '0.2rem' }}>Pagas al retirar</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              Efectivo, dólares o cualquier divisa. Tu pedido quedará registrado y listo al llegar.
+            </p>
+          </section>
+        )}
+
         {/* ── Datos pago móvil ── */}
-        {config && (
+        {paymentMethod === 'PAGO_MOVIL' && config && (
           <section style={{ background: 'var(--surface)', borderRadius: 12, padding: '1rem', marginBottom: '1.25rem', animation: 'fadeInUp 0.45s ease-out 240ms both' }}>
             <h2 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               📱 Datos de pago móvil
             </h2>
-            {[
-              ['Banco', config.PAGO_MOVIL_BANK],
-              ['Teléfono', config.PAGO_MOVIL_PHONE],
-              ['Titular', config.PAGO_MOVIL_HOLDER],
-              ['RIF / Cédula', config.PAGO_MOVIL_RIF],
-              ['Monto', `Bs ${usdToBs(total, rate)}`],
-            ].map(([label, value]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.9rem' }}>
+
+            {pagoMovilRows.map(({ label, value }) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', fontSize: '0.9rem' }}>
                 <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-                <span style={{ fontWeight: label === 'Monto' ? 700 : 400, color: label === 'Monto' ? 'var(--accent)' : 'var(--text)' }}>
-                  {value}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontWeight: label === 'Monto' ? 700 : 400, color: label === 'Monto' ? 'var(--accent)' : 'var(--text)' }}>
+                    {value}
+                  </span>
+                  <button
+                    className="copy-btn"
+                    onClick={() => copyToClipboard(value ?? '', label)}
+                    style={{ color: copiedField === label ? '#10b981' : 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1 }}
+                    title={`Copiar ${label}`}
+                  >
+                    {copiedField === label ? '✓' : '📋'}
+                  </button>
+                </div>
               </div>
             ))}
+
+            <button
+              onClick={() => copyToClipboard(copyAllText, 'all')}
+              style={{
+                width: '100%', marginTop: '0.5rem', padding: '0.6rem',
+                background: copiedField === 'all' ? 'rgba(16,185,129,0.12)' : 'rgba(245,197,24,0.08)',
+                border: `1px solid ${copiedField === 'all' ? 'rgba(16,185,129,0.3)' : 'rgba(245,197,24,0.2)'}`,
+                borderRadius: 8, fontWeight: 600, fontSize: '0.82rem',
+                color: copiedField === 'all' ? '#10b981' : 'var(--accent)',
+                transition: 'all 0.2s',
+              }}
+            >
+              {copiedField === 'all' ? '✓ Copiado!' : '📋 Copiar todos los datos'}
+            </button>
           </section>
         )}
 
-        {/* ── Upload comprobante ── */}
-        <section style={{ marginBottom: '1.5rem', animation: 'fadeInUp 0.45s ease-out 320ms both' }}>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>
-            Comprobante de pago *
-          </label>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-            Sube la captura de tu pago para confirmar tu pedido
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
-          {proofPreview ? (
-            <div style={{ position: 'relative' }}>
-              <img
-                src={proofPreview}
-                alt="Comprobante"
-                style={{ width: '100%', borderRadius: 10, maxHeight: 220, objectFit: 'cover' }}
-              />
+        {/* ── Upload comprobante + referencia ── */}
+        {paymentMethod === 'PAGO_MOVIL' && (
+          <section style={{ marginBottom: '1.5rem', animation: 'fadeInUp 0.45s ease-out 320ms both' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.4rem' }}>
+              Comprobante de pago
+            </label>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+              Sube la captura de tu pago o ingresa el número de referencia
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            {proofPreview ? (
+              <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+                <img
+                  src={proofPreview}
+                  alt="Comprobante"
+                  style={{ width: '100%', borderRadius: 10, maxHeight: 220, objectFit: 'cover' }}
+                />
+                <button
+                  onClick={() => { setProofFile(null); setProofPreview(null) }}
+                  style={{
+                    position: 'absolute', top: 8, right: 8,
+                    background: 'rgba(0,0,0,0.7)', color: '#fff',
+                    borderRadius: '50%', width: 28, height: 28,
+                    fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >×</button>
+              </div>
+            ) : (
               <button
-                onClick={() => { setProofFile(null); setProofPreview(null) }}
+                onClick={() => fileInputRef.current?.click()}
                 style={{
-                  position: 'absolute', top: 8, right: 8,
-                  background: 'rgba(0,0,0,0.7)', color: '#fff',
-                  borderRadius: '50%', width: 28, height: 28,
-                  fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '100%', padding: '0.85rem', marginBottom: '0.75rem',
+                  background: 'var(--surface)',
+                  border: `2px dashed ${proofError ? '#ef4444' : '#3A3A3A'}`,
+                  borderRadius: 10, color: proofError ? '#ef4444' : 'var(--text-muted)',
+                  fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                 }}
-              >×</button>
+              >
+                📷 Subir foto del comprobante
+              </button>
+            )}
+
+            {/* Referencia de texto */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                Número de referencia (opcional)
+              </label>
+              <input
+                className="checkout-input"
+                value={paymentRef}
+                onChange={(e) => { setPaymentRef(e.target.value); if (e.target.value.trim()) setProofError('') }}
+                placeholder="Ej: 00123456789"
+                style={{ fontSize: '0.95rem' }}
+              />
             </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                width: '100%', padding: '0.85rem',
-                background: 'var(--surface)',
-                border: `2px dashed ${proofError ? '#ef4444' : '#3A3A3A'}`,
-                borderRadius: 10, color: proofError ? '#ef4444' : 'var(--text-muted)',
-                fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-              }}
-            >
-              📷 Subir foto del comprobante
-            </button>
-          )}
-          {proofError && (
-            <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.4rem' }}>{proofError}</p>
-          )}
-        </section>
+
+            {proofError && (
+              <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.5rem' }}>{proofError}</p>
+            )}
+          </section>
+        )}
 
         {error && (
           <p style={{ color: 'var(--error)', fontSize: '0.85rem', marginBottom: '1rem', textAlign: 'center' }}>{error}</p>
