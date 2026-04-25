@@ -237,10 +237,40 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
   y `preflightContinue: false` al plugin `@fastify/cors`
 - Garantiza que preflight OPTIONS del DELETE no caiga en 404
 
+## Sesión 2026-04-25 (continuación) — Fixes dashboard estabilidad ✅
+
+### Fix: modal comprobante detrás de cards (z-index) ✅
+- **Root cause**: modal renderizado dentro del DOM de la card — si algún ancestro
+  crea un stacking context, `z-index: 9999` queda atrapado
+- **Fix**: ambos modales (QR y comprobante) migrados a `createPortal(modal, document.body)`
+  — se renderizan directamente en `<body>`, fuera de cualquier stacking context
+
+### Fix: sección "Pedidos" atascada en "Cargando pedidos..." ✅
+- **Root cause**: `Promise.all([getActive(), getToday()])` — si cualquiera de las
+  dos requests se cuelga sin resolver ni rechazar (timeout silencioso del proxy nginx),
+  el `await` espera indefinidamente y `finally` nunca corre
+- **Fix**: cambiado a `Promise.allSettled` + timeout explícito de 10s por request
+  vía `Promise.race`. Si una falla, la otra sigue. `setLoading(false)` garantizado.
+
+### Feat: alerta sonora en pedido nuevo ✅
+- `DashboardPage.tsx`: función `playNewOrderAlert()` con Web Audio API pura
+  (3 beeps ascendentes A5→C6→E6, 120ms c/u, sin archivos externos ni librerías)
+  disparada en el handler `order:new` del socket
+
+### Fix: transports WebSocket en dashboard y cocina ✅
+- `socket.ts` y `KitchenPage.tsx`: añadido `transports: ['websocket']`
+  para forzar WS directo y eliminar HTTP polling inicial
+
 ## Pendientes próxima sesión
 
-- [ ] **Bug**: Dashboard botón "Ver comprobante" aún requiere F5 — verificar si
-      el fix de `serializeOrder()` quedó completo en todos los emit paths
+- [ ] **BUG CRÍTICO**: Dashboard admin inestable — no carga o es muy lento en
+      producción (Railway). Síntomas: pantalla en blanco, carga infinita, lentitud
+      general. Posibles causas: nginx proxy timeout al backend, cold starts de
+      Railway, consultas DB lentas sin índices, o problema de red interna Railway.
+      **Investigar primero**: logs de Railway backend + tiempos de respuesta de
+      `/api/orders` y `/api/orders/today`
+- [ ] **Bug**: Dashboard botón "Ver comprobante" — verificar si ya funciona tras
+      el fix de `createPortal` y `serializeOrder()`
 - [ ] **Validación**: comprobante obligatorio en Checkout antes de confirmar pedido
 - [ ] **Rediseño UX**: animaciones y estilo general de la PWA
 - [ ] **UX**: mensaje `PAYMENT_REJECTED` menos agresivo — reemplazar X roja grande
