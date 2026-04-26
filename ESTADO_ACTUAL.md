@@ -287,29 +287,130 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 - `socket.ts` y `KitchenPage.tsx`: añadido `transports: ['websocket']`
   para forzar WS directo y eliminar HTTP polling inicial
 
+## Sesión 2026-04-25 (continuación 2) — Resumen completo de fixes ✅
+
+### ✅ Fix: "Ver comprobante" sin F5 — serializeOrder en todos los emitOrderUpdated
+- Aplicado `serializeOrder()` (elimina blob, añade `hasPaymentImage`) en los 6
+  `emitOrderUpdated()` de `dashboard.routes.ts` y en `order-service.ts`
+- Resultado: botón aparece en tiempo real, sin recargar página
+
+### ✅ Fix: 413 Payload Too Large al subir comprobante
+- Backend: `bodyLimit: 10 * 1024 * 1024` en `src/index.ts`
+- Cliente: compresión canvas en `CheckoutPage.tsx` — resize máx 1200px, calidad JPEG 0.7
+
+### ✅ Fix: URLs relativas en DriverPage y ReviewPage
+- Migrados de `fetch('/api/public/...')` a instancia `publicApi` con baseURL absoluta
+
+### ✅ Fix: window.confirm bloqueado en PWA standalone (botón cancelar)
+- Reemplazado por modal inline React con estado `cancelConfirmOpen`
+- Botones "Sí, cancelar" y "No, volver" dentro del componente
+
+### ✅ Fix: CORS para DELETE — methods explícito
+- `src/index.ts`: añadidos `methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS']`
+  y `preflightContinue: false` al plugin `@fastify/cors`
+
+### ✅ Fix CRÍTICO: dashboard hacía requests a sí mismo (URLs relativas)
+- `dashboard/src/api/api.ts`: `baseURL: '/api'` → `baseURL: \`${BACKEND}/api\``
+  con `BACKEND = import.meta.env.VITE_API_URL ?? 'https://yebrams.up.railway.app'`
+- `kitchenAxios` (línea 201): mismo fix — también usaba `'/api'`
+- `dashboard/src/socket/socket.ts`: fallback `''` → `'https://yebrams.up.railway.app'`
+- `KitchenPage.tsx` socket: fallback `''` → `'https://yebrams.up.railway.app'`
+- Resultado: todas las pestañas del dashboard (Config, Finanzas, Menú, Cocina) cargan
+
+### ✅ Mejora: CACHE_VERSION automático con hash de build (Service Worker)
+- Plugin Vite `inject-sw-hash` en `client/vite.config.ts` — reemplaza
+  `__VITE_BUILD_HASH__` en `sw.js` con `Date.now()` al final de cada build
+- `client/public/sw.js`: `const CACHE_NAME = 'yebrams-__VITE_BUILD_HASH__'`
+- Cada deploy genera cache key único sin intervención manual
+
+### ✅ Mejora: transports: ['websocket'] en dashboard y cocina
+- Fuerza WS directo, elimina polling HTTP inicial
+
+### ✅ Mejora: modal comprobante con createPortal — fix z-index definitivo
+- Ambos modales (QR y comprobante) renderizados en `document.body` fuera de
+  cualquier stacking context
+
+### ✅ Mejora: alerta sonora en pedido nuevo (Web Audio API)
+- 3 beeps ascendentes A5→C6→E6 sin archivos externos
+
+### ✅ Fix: queries de lista excluyen paymentImageUrl (performance BD)
+- `listOrders()` con `select` explícito + query paralela para `hasPaymentImage`
+- Evita cargar blob base64 (~200-500KB/pedido) en cada carga de dashboard
+
+### ✅ Fix: flujo PICKUP diferenciado
+- `OrderTrackingPage.tsx`: barra progreso 4 fases para PICKUP, 5 para DELIVERY
+- Mensaje "Pasa a retirarlo" en READY para PICKUP
+- Backend: `POST /api/public/orders/:id/delivered` acepta `READY + PICKUP` además de `OUT_FOR_DELIVERY`
+
+### ✅ Validación: comprobante obligatorio en Checkout
+- `CheckoutPage.tsx`: estado `proofError`, borde rojo en upload, mensaje inline
+  "Debes subir el comprobante de pago", bloquea submit si `!proofFile`
+
+### ✅ UX: card PAYMENT_REJECTED — tono advertencia en vez de error
+- `OrderTrackingPage.tsx`: fondo/borde cambiados de rojo a ámbar `rgba(245,158,11,…)`
+- Icono ❌ 2.5rem → ⚠️ 1.5rem
+- Título: "Tu pago no pudo verificarse" → "Necesitamos verificar tu pago" en `#f59e0b`
+- Subtítulo: "Por favor sube un nuevo comprobante o cancela si lo prefieres"
+- Botón cancelar: borde rojo → neutro `#3A3A3A`, color `var(--text-muted)`
+- Modal de confirmación cancelar: también pasado a tono ámbar
+
+## Sesión 2026-04-25 (continuación 3) — Pago efectivo, referencia texto, animaciones ✅
+
+### ✅ Checkout: clipboard copiar datos pago móvil
+- Botones 📋 individuales por campo (banco, teléfono, cédula, monto) + "📋 Copiar todos los datos"
+- `copyToClipboard(text, field)`: `navigator.clipboard.writeText()` + feedback ✓ verde 1.5s por campo
+- "Copiar todos" NO incluye el titular (solo banco, RIF, teléfono, monto)
+
+### ✅ Checkout: efectivo/divisas para PICKUP
+- Selector toggle "📱 Pago Móvil" | "💵 Efectivo / Divisas" visible solo cuando `deliveryType === 'PICKUP'`
+- CASH: oculta sección pago móvil y upload; muestra card verde "💵 Pagas al retirar en el local"
+- Al cambiar a DELIVERY: resetea a `'PAGO_MOVIL'` automáticamente
+- Backend: `isCash = paymentMethod === 'CASH' && deliveryType === 'PICKUP'`; persiste `CASH_ON_DELIVERY` en Prisma
+
+### ✅ Checkout: referencia de texto sin imagen como alternativa
+- Input "Número de referencia (opcional)" bajo el botón de upload
+- Validación: `paymentMethod === 'PAGO_MOVIL' && !proofFile && !paymentRef.trim()` → error
+- Backend: guarda referencia con `prisma.order.update({ data: { paymentReference } })` post-create
+
+### ✅ Dashboard OrderCard: botones confirmar/rechazar para pedidos con referencia de texto
+- Condición extendida: `order.status === 'PAYMENT_UPLOADED' || (order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'PAGO_MOVIL' && order.paymentReference)`
+- Antes solo aparecía para `PAYMENT_UPLOADED`; las órdenes con referencia de texto quedaban en `PENDING_PAYMENT` sin botón
+
+### ✅ Dashboard OrderCard: badge "📋 Ref: XXXXX"
+- Muestra referencia de texto inline cuando `!order.hasPaymentImage && order.paymentReference`
+- Estilo: `var(--surface2)`, `var(--text2)`, borderRadius 6, padding compacto
+
+### ✅ PWA barra PICKUP: 5 fases con READY como paso separado
+- `PICKUP_PHASES`: 📋 Recibido → ✅ Pago → 👨‍🍳 Cocina → 🏪 Listo → 🎉 Entregado
+- `statusToPhase` PICKUP: `IN_KITCHEN→2`, `READY→3` (antes ambos eran 2), `DELIVERED→4`
+- `statusLabel` PICKUP `READY`: "🏪 ¡Tu pedido está listo! Pasa a retirarlo"
+
+### ✅ UX: animaciones y transiciones PWA
+- `MenuPage`: hero `fadeInDown` 0.6s, subtítulo `fadeIn` 0.6s delay 0.3s, CTA `heroPulse` pulsante, cards `translateY(-4px)` en hover, botón "Agregar" `scale(0.92)` en click, grid `gridFadeIn` al cambiar categoría, badge carrito `cartBounce` 0.42s
+- `CartDrawer`: `slideUp` 0.3s al abrir, `slideDown` 0.2s al cerrar (estado `cartClosing` en parent con timeout 200ms), backdrop `fadeIn/fadeOut`
+- `CheckoutPage`: 5 secciones con `fadeInUp` escalonado (0ms/80ms/120ms/160ms/240ms/320ms), inputs con glow dorado en `:focus`, botón confirmar con `heroPulse` mientras no envía
+
+### ✅ UX: PAYMENT_REJECTED tono ámbar (ya en continuación 2, confirmado)
+- Fondo/borde ámbar `rgba(245,158,11,…)`, icono ⚠️ 1.5rem, texto menos agresivo, botón cancelar neutro
+
 ## Pendientes próxima sesión
 
-- [ ] 🚨 **BUG CRÍTICO — Dashboard: múltiples pestañas no cargan (Config, Finanzas, Menú)**
-      Root cause: URLs relativas en el dashboard resuelven contra el host del dashboard
-      en vez del backend — mismo patrón que se corrigió en la PWA cliente.
-      Síntomas: 502 en `/api/drivers`, `/api/promos/days`, WebSocket conecta a host equivocado.
-      Fix intentado: `dashboard/src/api/api.ts` → `baseURL: '/api'` cambiado a URL absoluta con
-      fallback `https://yebrams.up.railway.app`; `socket.ts` fallback corregido igual.
-      Bug persiste — revisión más profunda requerida. **Atender primero.**
-
-- [ ] **Bug**: Dashboard botón "Ver comprobante" — verificar si ya funciona tras
-      el fix de `createPortal` y `serializeOrder()`
-
-- [ ] **Validación**: comprobante obligatorio en Checkout antes de confirmar pedido
-
-- [ ] **UX**: mensaje `PAYMENT_REJECTED` menos agresivo — reemplazar X roja grande
-      por algo más sutil (ej. banner amarillo de advertencia)
-
-- [ ] **Rediseño UX**: animaciones y estilo general de la PWA
+- [ ] **Bug #0018**: pedido PICKUP+referencia saltó paso IN_KITCHEN en barra de progreso — investigar con query en Railway:
+  ```sql
+  SELECT id, "orderNumber", status, "deliveryType", "paymentMethod", "paymentReference"
+  FROM orders WHERE "orderNumber" = 18
+  ```
 
 - [ ] **Feature**: GPS del cliente en Checkout
 
 - [ ] **Menú**: agregar categoría "Bebidas" con imagen (el usuario la enviará)
+
+- [ ] **Feature**: saludo personalizado LLM en hero de la PWA
+
+- [ ] **Deuda técnica**: cocina (`KitchenPage.tsx`) migrar socket a singleton
+      compartido en lugar de crear conexión propia
+
+- [ ] **Verificar**: beep en pedidos PICKUP+efectivo — confirmar que llega en todos los casos
 
 ## Notas de deploy (Railway)
 

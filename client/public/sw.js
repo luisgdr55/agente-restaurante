@@ -1,19 +1,11 @@
 const CACHE_NAME = 'yebrams-__VITE_BUILD_HASH__';
 
 // ── Install ────────────────────────────────────────────────────────────────
-// NO llamamos skipWaiting aquí — el usuario decide cuándo actualizar via toast
 self.addEventListener('install', () => {
-  // Nada — el SW queda en estado "waiting" hasta que el usuario acepta
+  self.skipWaiting();
 });
 
-// ── Mensaje desde el cliente React ─────────────────────────────────────────
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-// ── Activate: limpiar caches viejos ───────────────────────────────────────
+// ── Activate: limpiar caches viejos + tomar control inmediato ─────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
