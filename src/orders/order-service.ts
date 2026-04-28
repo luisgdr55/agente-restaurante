@@ -2,7 +2,7 @@
  * Ciclo de vida de órdenes: creación, actualización de estado, consulta.
  * Los precios en USD se guardan en DB; el total en Bs se recalcula con la tasa del momento.
  */
-import type { Order, OrderItem, OrderStatus } from '@prisma/client';
+import type { Order, OrderItem, OrderStatus, PaymentMethod } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { getExchangeRate, usdToBs, getConfig } from '../menu/config-service';
 import { logger } from '../utils/logger';
@@ -25,7 +25,7 @@ export interface CreateOrderInput {
   deliveryType: 'DELIVERY' | 'PICKUP';
   deliveryAddress?: string;
   deliveryReference?: string;
-  paymentMethod: 'PAGO_MOVIL' | 'CASH_ON_DELIVERY';
+  paymentMethod: PaymentMethod;
   notes?: string;
   discountUsd?: number;
   promotionId?: string;
@@ -40,7 +40,7 @@ export interface OrderSummary {
   totalBs: number;
   totalUsd: number;
   deliveryType: 'DELIVERY' | 'PICKUP';
-  paymentMethod: 'PAGO_MOVIL' | 'CASH_ON_DELIVERY';
+  paymentMethod: PaymentMethod;
   items: Array<{ name: string; quantity: number; subtotalBs: number }>;
 }
 
