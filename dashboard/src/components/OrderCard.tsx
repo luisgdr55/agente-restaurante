@@ -12,7 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   PAYMENT_CONFIRMED:          '✅ Pago conf.',
   PAYMENT_REJECTED:           '❌ Pago rechazado',
   IN_KITCHEN:                 '🍳 En cocina',
-  AWAITING_DRIVER_ASSIGNMENT: '🛵 Asignar motorizado',
+  AWAITING_DRIVER_ASSIGNMENT: '🛵 Asignar motor.',
   READY:                      '🎉 Listo',
   OUT_FOR_DELIVERY:           '🛵 En camino',
   DELIVERED:                  '✅ Entregado',
@@ -26,7 +26,7 @@ const STATUS_COLOR: Record<string, string> = {
   PAYMENT_REJECTED:           '#ef4444',
   IN_KITCHEN:                 '#f97316',
   AWAITING_DRIVER_ASSIGNMENT: '#ec4899',
-  READY:                      '#8b5cf6',
+  READY:                      '#22c55e',
   OUT_FOR_DELIVERY:           '#6366f1',
   DELIVERED:                  '#10b981',
   CANCELLED:                  '#6b7280',
@@ -119,7 +119,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
   const openProof = async () => {
     setProofOpen(true);
     setOcrResult(null);
-    if (proofUrl) return; // already loaded
+    if (proofUrl) return;
     setProofLoading(true);
     try {
       const data = await ordersApi.getProof(order.id);
@@ -152,66 +152,110 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
   const isDone = TERMINAL.includes(order.status);
   const driverQrUrl = `${PWA_URL}/driver/${order.id}`;
-
   const isReady = order.status === 'READY';
 
   return (
-    <div className="card" style={{
-      borderTop: `3px solid ${borderColor}`,
-      opacity: isDone ? 0.75 : 1,
-      animation: isReady ? 'readyPulse 1.6s ease-in-out infinite' : 'none',
-    }}>
+    <div
+      className="card"
+      style={{
+        padding: '1.5rem',
+        border: isReady ? '3px solid #22c55e' : `4px solid ${borderColor}`,
+        borderRadius: 14,
+        opacity: isDone ? 0.75 : 1,
+        animation: isReady ? 'readyPulse 1.6s ease-in-out infinite' : 'none',
+      }}
+    >
       {isReady && (
         <style>{`
           @keyframes readyPulse {
             0%, 100% { box-shadow: 0 0 0px #22c55e; }
-            50%       { box-shadow: 0 0 20px #22c55e; }
+            50%       { box-shadow: 0 0 24px #22c55e; }
           }
         `}</style>
       )}
+
+      {/* READY Banner */}
       {isReady && (
         <div style={{
-          background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)',
-          borderRadius: 8, padding: '0.45rem 0.75rem', marginBottom: '0.5rem',
-          textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', color: '#22c55e',
-          letterSpacing: '0.04em',
+          background: 'rgba(34,197,94,0.15)',
+          border: '1px solid rgba(34,197,94,0.5)',
+          borderRadius: 10,
+          padding: '0.65rem 1rem',
+          marginBottom: '1rem',
+          textAlign: 'center',
+          fontWeight: 800,
+          fontSize: '1rem',
+          color: '#22c55e',
+          letterSpacing: '0.08em',
         }}>
           ✅ LISTO PARA ENTREGAR
         </div>
       )}
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>#{orderNum}</span>
+
+      {/* Header: order number + status badge */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+        <span style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>
+          #{orderNum}
+        </span>
         <span style={{
-          fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px',
-          borderRadius: '999px', background: borderColor + '22', color: borderColor,
+          fontSize: '0.82rem', fontWeight: 700,
+          padding: '0.35rem 0.85rem',
+          borderRadius: '999px',
+          background: borderColor + '22',
+          color: borderColor,
+          letterSpacing: '0.02em',
+          whiteSpace: 'nowrap',
         }}>
           {STATUS_LABELS[order.status] ?? order.status}
         </span>
       </div>
 
-      {/* Cliente */}
-      <div className="mt-1">
-        <div style={{ fontWeight: 600 }}>{order.customer.name ?? 'Cliente'}</div>
-        <div className="text-muted text-xs">{order.customer.phone}</div>
+      {/* Customer */}
+      <div style={{ marginBottom: '0.85rem' }}>
+        <div style={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.25 }}>
+          {order.customer.name ?? 'Cliente'}
+        </div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+          {order.customer.phone}
+        </div>
       </div>
 
-      {/* Tipo de entrega */}
-      <div className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
-        {order.deliveryType === 'DELIVERY' ? '🛵 Delivery' : '🏃 Pickup'}
-        {order.deliveryAddress && <span> · {order.deliveryAddress}</span>}
+      {/* Delivery + payment chips */}
+      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+        <span style={{
+          fontSize: '0.78rem', fontWeight: 600,
+          padding: '0.3rem 0.7rem', borderRadius: 8,
+          background: 'var(--surface2)', color: 'var(--text2)',
+        }}>
+          {order.deliveryType === 'DELIVERY' ? '🛵 Delivery' : '🏃 Pickup'}
+        </span>
         {order.paymentMethod && (
-          <span> · {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}</span>
+          <span style={{
+            fontSize: '0.78rem', fontWeight: 600,
+            padding: '0.3rem 0.7rem', borderRadius: 8,
+            background: 'var(--surface2)', color: 'var(--text2)',
+          }}>
+            {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
+          </span>
         )}
-        {order.paymentReference && <span> · Ref: {order.paymentReference}</span>}
+        {order.deliveryAddress && (
+          <span style={{
+            fontSize: '0.78rem', fontWeight: 500,
+            padding: '0.3rem 0.7rem', borderRadius: 8,
+            background: 'var(--surface2)', color: 'var(--text2)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
+          }}>
+            📍 {order.deliveryAddress}
+          </span>
+        )}
       </div>
 
-      {/* Comprobante: imagen o referencia de texto */}
+      {/* Proof / reference inline */}
       {order.hasPaymentImage && (
-        <div className="mt-1">
+        <div style={{ marginBottom: '0.85rem' }}>
           <button
             className="btn btn-sm btn-ghost"
-            style={{ fontSize: '0.75rem', color: '#3b82f6', width: '100%' }}
+            style={{ fontSize: '0.8rem', color: '#3b82f6', width: '100%', border: '1px solid #3b82f633', borderRadius: 8, padding: '0.45rem' }}
             onClick={() => void openProof()}
           >
             Ver comprobante 🧾
@@ -219,115 +263,155 @@ export default function OrderCard({ order, onRefresh }: Props) {
         </div>
       )}
       {!order.hasPaymentImage && order.paymentReference && (
-        <div className="mt-1" style={{ fontSize: '0.75rem', color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 6, padding: '0.3rem 0.6rem' }}>
-          📋 Ref: <span style={{ fontWeight: 600, color: 'var(--text)' }}>{order.paymentReference}</span>
+        <div style={{
+          marginBottom: '0.85rem',
+          fontSize: '0.82rem',
+          color: 'var(--text2)',
+          background: 'var(--surface2)',
+          borderRadius: 8,
+          padding: '0.45rem 0.75rem',
+        }}>
+          📋 Ref: <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.92rem' }}>
+            {order.paymentReference}
+          </span>
         </div>
       )}
 
-      {/* Ítems */}
-      <div className="mt-1" style={{ borderTop: '1px solid var(--surface2)', paddingTop: '0.5rem' }}>
+      {/* Items */}
+      <div style={{
+        borderTop: '1px solid var(--surface2)',
+        borderBottom: '1px solid var(--surface2)',
+        padding: '0.75rem 0',
+        marginBottom: '0.85rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.45rem',
+      }}>
         {order.items.map((item, i) => (
-          <div key={i} className="text-sm flex justify-between">
-            <span>{item.quantity}x {item.menuItem.name}</span>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{
+              minWidth: 30, height: 30, borderRadius: '50%',
+              background: 'var(--accent)', color: '#000',
+              fontWeight: 800, fontSize: '0.88rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              {item.quantity}
+            </span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>{item.menuItem.name}</span>
           </div>
         ))}
       </div>
 
-      {/* Total + tiempo */}
-      <div className="flex justify-between items-center mt-1">
-        <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '1rem' }}>
-          Bs {parseFloat(order.totalBs).toFixed(2)}
-        </span>
-        <span className="text-xs text-muted">hace {timeAgo}m</span>
+      {/* Total + time */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+        marginBottom: isDone ? 0 : '1rem',
+      }}>
+        <div>
+          <div style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '1.3rem', lineHeight: 1 }}>
+            ${parseFloat(order.totalUsd).toFixed(2)}
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+            Bs {parseFloat(order.totalBs).toFixed(2)}
+          </div>
+        </div>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>hace {timeAgo}m</span>
       </div>
 
-      {/* Acciones */}
+      {/* Action buttons */}
       {!isDone && (
-        <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 
-          {/* Confirmar / Rechazar pago */}
+          {/* Confirm / Reject payment */}
           {(order.status === 'PAYMENT_UPLOADED' ||
             (order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'PAGO_MOVIL' && order.paymentReference)) && (
             <div className="flex gap-1">
-              <button className="btn btn-sm btn-success" style={{ flex: 1 }}
+              <button className="btn btn-sm btn-success"
+                style={{ flex: 1, minHeight: 48, fontSize: '1rem' }}
                 disabled={loading} onClick={() => doAction('PAYMENT_CONFIRMED')}>
                 ✅ Confirmar pago
               </button>
-              <button className="btn btn-sm btn-danger" style={{ flex: 1 }}
+              <button className="btn btn-sm btn-danger"
+                style={{ flex: 1, minHeight: 48, fontSize: '1rem' }}
                 disabled={loading} onClick={() => setRejectOpen(true)}>
-                ❌ Rechazar pago
+                ❌ Rechazar
               </button>
             </div>
           )}
 
-          {/* Efectivo/POS pendiente → enviar a cocina */}
+          {/* Cash/POS → kitchen */}
           {order.status === 'PENDING_PAYMENT' && (order.paymentMethod === 'CASH_ON_DELIVERY' || order.paymentMethod === 'POS') && (
-            <button className="btn btn-sm btn-primary" disabled={loading}
-              onClick={() => doAction('IN_KITCHEN')}>
+            <button className="btn btn-sm btn-primary"
+              style={{ minHeight: 48, fontSize: '1rem' }}
+              disabled={loading} onClick={() => doAction('IN_KITCHEN')}>
               🍳 Enviar a cocina
             </button>
           )}
 
-          {/* PAYMENT_CONFIRMED: ya está en cocina automáticamente, sin acción manual */}
+          {/* Payment confirmed — auto in kitchen */}
           {order.status === 'PAYMENT_CONFIRMED' && (
-            <div style={{ fontSize: '0.78rem', color: 'var(--text2)', textAlign: 'center', padding: '0.3rem 0' }}>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text2)', textAlign: 'center', padding: '0.4rem 0' }}>
               🍳 Enviado a cocina automáticamente
             </div>
           )}
 
           {order.status === 'IN_KITCHEN' && (
-            <button className="btn btn-sm btn-success" disabled={loading}
-              onClick={() => doAction('READY')}>
+            <button className="btn btn-sm btn-success"
+              style={{ minHeight: 48, fontSize: '1rem' }}
+              disabled={loading} onClick={() => doAction('READY')}>
               🎉 Marcar como listo
             </button>
           )}
 
+          {/* Assign driver panel */}
           {order.status === 'AWAITING_DRIVER_ASSIGNMENT' && (
-            <div style={{ background: 'var(--surface2)', borderRadius: '8px', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#ec4899' }}>
+            <div style={{
+              background: 'var(--surface2)', borderRadius: 10,
+              padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem',
+            }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ec4899' }}>
                 🛵 Asignar motorizado
               </div>
 
-              {/* ── Formulario ad-hoc ── */}
               {(adHocMode || drivers.length === 0) ? (
                 <>
                   <input
                     placeholder="Nombre del motorizado"
                     value={adHocName}
                     onChange={(e) => setAdHocName(e.target.value)}
-                    style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.85rem' }}
+                    style={{ padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
                   />
                   <input
                     placeholder="Teléfono (ej: 584121234567)"
                     value={adHocPhone}
                     onChange={(e) => setAdHocPhone(e.target.value)}
-                    style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.85rem' }}
+                    style={{ padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
                   />
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
                     <button
                       className="btn btn-sm btn-primary"
+                      style={{ flex: 1, minHeight: 44 }}
                       disabled={assigning || !adHocName.trim() || !adHocPhone.trim()}
                       onClick={() => void doAssignAdHoc()}
-                      style={{ flex: 1 }}
                     >
                       {assigning ? 'Asignando...' : '📲 Asignar y notificar'}
                     </button>
                     {drivers.length > 0 && (
-                      <button className="btn btn-sm btn-ghost" onClick={() => { setAdHocMode(false); setAdHocName(''); setAdHocPhone(''); }} style={{ fontSize: '0.75rem' }}>
+                      <button className="btn btn-sm btn-ghost"
+                        style={{ fontSize: '0.78rem' }}
+                        onClick={() => { setAdHocMode(false); setAdHocName(''); setAdHocPhone(''); }}>
                         Cancelar
                       </button>
                     )}
                   </div>
                 </>
               ) : (
-                /* ── Dropdown motorizados registrados ── */
                 <>
                   <select
                     value={selectedDriverId}
                     onChange={(e) => setSelectedDriverId(e.target.value)}
-                    style={{ width: '100%', padding: '0.3rem 0.5rem', borderRadius: '6px',
-                      border: '1px solid var(--surface2)', background: 'var(--surface)',
-                      color: 'var(--text)', fontSize: '0.85rem' }}
+                    style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
                   >
                     <option value="">Selecciona un motorizado...</option>
                     {drivers.map((d) => (
@@ -336,12 +420,15 @@ export default function OrderCard({ order, onRefresh }: Props) {
                   </select>
                   <button
                     className="btn btn-sm btn-primary"
+                    style={{ minHeight: 44 }}
                     disabled={assigning || !selectedDriverId}
                     onClick={() => void doAssignDriver()}
                   >
                     {assigning ? 'Asignando...' : '📲 Asignar y notificar'}
                   </button>
-                  <button className="btn btn-sm btn-ghost" onClick={() => setAdHocMode(true)} style={{ fontSize: '0.75rem', color: 'var(--text2)' }}>
+                  <button className="btn btn-sm btn-ghost"
+                    style={{ fontSize: '0.78rem', color: 'var(--text2)' }}
+                    onClick={() => setAdHocMode(true)}>
                     ➕ Motorizado nuevo
                   </button>
                 </>
@@ -349,31 +436,42 @@ export default function OrderCard({ order, onRefresh }: Props) {
             </div>
           )}
 
+          {/* READY actions — green buttons */}
           {order.status === 'READY' && order.deliveryType === 'DELIVERY' && (
-            <button className="btn btn-sm btn-primary" disabled={sendingOut}
-              onClick={() => void doSendOutForDelivery()}>
+            <button
+              className="btn btn-sm"
+              style={{ minHeight: 48, fontSize: '1rem', background: '#22c55e', color: '#fff', fontWeight: 700 }}
+              disabled={sendingOut}
+              onClick={() => void doSendOutForDelivery()}
+            >
               {sendingOut ? 'Procesando...' : '🛵 Salió a domicilio'}
             </button>
           )}
 
           {order.status === 'READY' && order.deliveryType !== 'DELIVERY' && (
-            <button className="btn btn-sm btn-success" disabled={loading}
-              onClick={() => doAction('DELIVERED')}>
+            <button
+              className="btn btn-sm"
+              style={{ minHeight: 48, fontSize: '1rem', background: '#22c55e', color: '#fff', fontWeight: 700 }}
+              disabled={loading}
+              onClick={() => doAction('DELIVERED')}
+            >
               ✅ Cliente retiró
             </button>
           )}
 
           {order.status === 'OUT_FOR_DELIVERY' && (
-            <button className="btn btn-sm btn-ghost" style={{ fontSize: '0.78rem' }}
+            <button className="btn btn-sm btn-ghost"
+              style={{ fontSize: '0.82rem', minHeight: 40 }}
               onClick={() => setQrOpen(true)}>
               📱 Ver QR motorizado
             </button>
           )}
 
-          {/* Cancelar (disponible en cualquier estado activo) */}
+          {/* Cancel */}
           {!['DELIVERED', 'CANCELLED', 'IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY'].includes(order.status) && (
-            <button className="btn btn-sm btn-ghost" disabled={loading}
-              style={{ color: 'var(--danger, #ef4444)', fontSize: '0.75rem' }}
+            <button className="btn btn-sm btn-ghost"
+              style={{ color: 'var(--danger, #ef4444)', fontSize: '0.82rem', minHeight: 40 }}
+              disabled={loading}
               onClick={() => doAction('CANCELLED')}>
               Cancelar pedido
             </button>
@@ -381,7 +479,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
         </div>
       )}
 
-      {/* Modal QR motorizado — Portal para escapar el stacking context de la card */}
+      {/* QR Modal Portal */}
       {qrOpen && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
@@ -389,7 +487,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
           padding: '1rem',
         }} onClick={() => setQrOpen(false)}>
           <div style={{
-            background: 'var(--surface)', borderRadius: '16px', padding: '1.5rem',
+            background: 'var(--surface)', borderRadius: 16, padding: '1.5rem',
             maxWidth: 320, width: '100%', textAlign: 'center',
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.25rem' }}>
@@ -398,17 +496,13 @@ export default function OrderCard({ order, onRefresh }: Props) {
             <div style={{ fontSize: '0.8rem', color: 'var(--text2)', marginBottom: '1rem' }}>
               Pedido #{orderNum} · {order.customer.name ?? order.customer.phone}
             </div>
-            <div style={{
-              background: '#fff', padding: '1rem', borderRadius: '12px',
-              display: 'inline-block', marginBottom: '1rem',
-            }}>
+            <div style={{ background: '#fff', padding: '1rem', borderRadius: 12, display: 'inline-block', marginBottom: '1rem' }}>
               <QRCodeSVG value={driverQrUrl} size={200} />
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginBottom: '1rem', wordBreak: 'break-all' }}>
               {driverQrUrl}
             </div>
-            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }}
-              onClick={() => setQrOpen(false)}>
+            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }} onClick={() => setQrOpen(false)}>
               Cerrar
             </button>
           </div>
@@ -416,7 +510,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
         document.body
       )}
 
-      {/* Modal comprobante + OCR — Portal para escapar el stacking context de la card */}
+      {/* Proof Modal Portal */}
       {proofOpen && createPortal(
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
@@ -424,7 +518,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
           padding: '1rem', overflowY: 'auto',
         }} onClick={() => setProofOpen(false)}>
           <div style={{
-            background: 'var(--surface)', borderRadius: '16px', padding: '1.25rem',
+            background: 'var(--surface)', borderRadius: 16, padding: '1.25rem',
             maxWidth: 420, width: '100%',
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.75rem' }}>
@@ -438,9 +532,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
                 <img
                   src={proofUrl}
                   alt="Comprobante"
-                  style={{ width: '100%', borderRadius: '10px', marginBottom: '0.75rem', display: 'block' }}
+                  style={{ width: '100%', borderRadius: 10, marginBottom: '0.75rem', display: 'block' }}
                 />
-
                 <button
                   className="btn btn-sm btn-primary"
                   style={{ width: '100%', marginBottom: '0.5rem' }}
@@ -449,12 +542,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
                 >
                   {ocrLoading ? 'Extrayendo...' : '🔍 Extraer datos OCR'}
                 </button>
-
                 {ocrResult && (
-                  <div style={{
-                    background: 'var(--surface2)', borderRadius: '10px',
-                    padding: '0.75rem', marginBottom: '0.5rem', fontSize: '0.82rem',
-                  }}>
+                  <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '0.75rem', marginBottom: '0.5rem', fontSize: '0.82rem' }}>
                     {[
                       ['Referencia', ocrResult.referencia],
                       ['Fecha', ocrResult.fecha],
@@ -473,13 +562,10 @@ export default function OrderCard({ order, onRefresh }: Props) {
                 )}
               </>
             ) : (
-              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text2)' }}>
-                Sin imagen
-              </div>
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text2)' }}>Sin imagen</div>
             )}
 
-            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }}
-              onClick={() => setProofOpen(false)}>
+            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }} onClick={() => setProofOpen(false)}>
               Cerrar
             </button>
           </div>
@@ -487,24 +573,24 @@ export default function OrderCard({ order, onRefresh }: Props) {
         document.body
       )}
 
-      {/* Panel de rechazo */}
+      {/* Reject panel */}
       {rejectOpen && (
-        <div style={{ marginTop: '0.5rem', background: 'var(--surface2)', borderRadius: '8px', padding: '0.6rem' }}>
-          <div className="text-xs text-muted" style={{ marginBottom: '0.3rem' }}>Motivo del rechazo (opcional):</div>
+        <div style={{ marginTop: '0.75rem', background: 'var(--surface2)', borderRadius: 10, padding: '0.75rem' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Motivo del rechazo (opcional):</div>
           <input
             type="text"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             placeholder="Ej: monto incorrecto..."
-            style={{ width: '100%', padding: '0.3rem 0.5rem', borderRadius: '6px',
-              border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.85rem' }}
+            style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
           />
-          <div className="flex gap-1 mt-1">
-            <button className="btn btn-sm btn-danger" style={{ flex: 1 }} disabled={loading}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <button className="btn btn-sm btn-danger" style={{ flex: 1, minHeight: 44 }}
+              disabled={loading}
               onClick={() => doAction('PAYMENT_REJECTED', rejectReason || undefined)}>
               Confirmar rechazo
             </button>
-            <button className="btn btn-sm btn-ghost" style={{ flex: 1 }}
+            <button className="btn btn-sm btn-ghost" style={{ flex: 1, minHeight: 44 }}
               onClick={() => { setRejectOpen(false); setRejectReason(''); }}>
               Cancelar
             </button>

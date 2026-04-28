@@ -248,7 +248,7 @@ export default function KitchenPage() {
           {orders.map((order) => {
             const mins = minutesSince(order.createdAt);
             const level = alertLevel(mins);
-            const timerColor = level === 'urgent' ? '#ef4444' : level === 'warning' ? '#f97316' : 'var(--success)';
+            const timerColor = level === 'urgent' ? '#ef4444' : level === 'warning' ? '#f97316' : '#22c55e';
             const fId = String(order.orderNumber).padStart(4, '0');
             const isBusy = marking === order.id;
             const cardClass = level === 'urgent' ? 'card kitchen-urgent' : level === 'warning' ? 'card kitchen-warning' : 'card';
@@ -257,59 +257,88 @@ export default function KitchenPage() {
               <div
                 key={order.id}
                 className={cardClass}
-                style={{ borderLeft: `4px solid ${timerColor}`, padding: '1rem' }}
+                style={{ borderLeft: `5px solid ${timerColor}`, padding: '1.5rem' }}
               >
-                {/* Top row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                  <div>
-                    <span style={{ fontSize: '1.3rem', fontWeight: 700 }}>#{fId}</span>
+                {/* Header row: order number + status badge + timer */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 900, letterSpacing: '-0.5px' }}>#{fId}</span>
                     <span style={{
-                      marginLeft: '0.75rem',
-                      fontSize: '0.75rem',
-                      background: order.status === 'PAYMENT_CONFIRMED' ? 'var(--warning)' : 'var(--primary)',
-                      color: '#fff',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: 4,
+                      fontSize: '0.78rem', fontWeight: 700,
+                      padding: '0.3rem 0.7rem', borderRadius: '999px',
+                      background: order.status === 'PAYMENT_CONFIRMED' ? '#f59e0b22' : '#f9731622',
+                      color: order.status === 'PAYMENT_CONFIRMED' ? '#f59e0b' : '#f97316',
                     }}>
-                      {order.status === 'PAYMENT_CONFIRMED' ? 'Confirmado' : 'En cocina'}
+                      {order.status === 'PAYMENT_CONFIRMED' ? '✅ Confirmado' : '🍳 En cocina'}
                     </span>
                     {level === 'urgent' && (
                       <span style={{
-                        marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700,
-                        color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em',
+                        fontSize: '0.75rem', fontWeight: 800,
+                        color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.06em',
                       }}>
                         ⚠️ URGENTE
                       </span>
                     )}
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  {/* Timer */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{
-                      fontSize: level === 'urgent' ? '1.8rem' : '1.5rem',
+                      fontSize: '1.6rem',
                       fontWeight: 800,
                       color: timerColor,
+                      lineHeight: 1,
                     }}>
                       {formatElapsed(mins)}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text2)' }}>
-                      {order.deliveryType === 'DELIVERY' ? '🛵 Delivery' : '🏠 Retiro en local'}
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text2)', marginTop: '0.15rem' }}>
+                      transcurrido
                     </div>
                   </div>
                 </div>
 
-                {/* Items */}
-                <div style={{ marginBottom: '0.75rem' }}>
+                {/* Items — the most prominent element */}
+                <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {order.items.map((item, i) => (
-                    <div key={i} style={{ fontSize: '1rem', padding: '0.2rem 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>{item.quantity}×</span>
-                      {' '}{item.menuItem.name}
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{
+                        minWidth: 36, height: 36, borderRadius: '50%',
+                        background: 'var(--accent)', color: '#000',
+                        fontWeight: 900, fontSize: '1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {item.quantity}
+                      </span>
+                      <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{item.menuItem.name}</span>
                     </div>
                   ))}
                 </div>
 
-                {/* Customer */}
-                <div style={{ fontSize: '0.8rem', color: 'var(--text2)', marginBottom: '0.75rem' }}>
-                  👤 {order.customer.name ?? order.customer.phone}
-                  {order.deliveryAddress && <span> · 📍 {order.deliveryAddress}</span>}
+                {/* Customer + delivery chips */}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <span style={{
+                    fontSize: '0.82rem', fontWeight: 600,
+                    padding: '0.3rem 0.7rem', borderRadius: 8,
+                    background: 'var(--surface2)', color: 'var(--text2)',
+                  }}>
+                    👤 {order.customer.name ?? order.customer.phone}
+                  </span>
+                  <span style={{
+                    fontSize: '0.82rem', fontWeight: 600,
+                    padding: '0.3rem 0.7rem', borderRadius: 8,
+                    background: 'var(--surface2)', color: 'var(--text2)',
+                  }}>
+                    {order.deliveryType === 'DELIVERY' ? '🛵 Delivery' : '🏪 Pickup'}
+                  </span>
+                  {order.deliveryAddress && (
+                    <span style={{
+                      fontSize: '0.78rem', fontWeight: 500,
+                      padding: '0.3rem 0.7rem', borderRadius: 8,
+                      background: 'var(--surface2)', color: 'var(--text2)',
+                    }}>
+                      📍 {order.deliveryAddress}
+                    </span>
+                  )}
                 </div>
 
                 {/* LISTO button */}
@@ -317,11 +346,14 @@ export default function KitchenPage() {
                   className="btn btn-primary"
                   style={{
                     width: '100%',
-                    padding: '0.9rem',
-                    fontSize: '1.1rem',
-                    fontWeight: 700,
-                    background: 'var(--success)',
-                    letterSpacing: '0.05rem',
+                    minHeight: 56,
+                    fontSize: '1.2rem',
+                    fontWeight: 800,
+                    background: '#22c55e',
+                    border: 'none',
+                    borderRadius: 12,
+                    letterSpacing: '0.04em',
+                    color: '#fff',
                   }}
                   disabled={isBusy}
                   onClick={() => void markReady(order.id)}
