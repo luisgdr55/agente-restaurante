@@ -22,27 +22,43 @@ interface ConfirmState {
   vapidPublicKey: string
 }
 
+const CONFIRM_DATA_KEY = 'yebrams_confirm_data'
+
+function loadConfirmData(): ConfirmState | null {
+  try {
+    const raw = localStorage.getItem(CONFIRM_DATA_KEY)
+    return raw ? (JSON.parse(raw) as ConfirmState) : null
+  } catch { return null }
+}
+
+export function clearConfirmData() {
+  localStorage.removeItem(CONFIRM_DATA_KEY)
+}
+
 export default function ConfirmPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const state = location.state as ConfirmState | null
+  const [confirmState] = useState<ConfirmState | null>(
+    () => (location.state as ConfirmState | null) ?? loadConfirmData()
+  )
   const [showNotifModal, setShowNotifModal] = useState(false)
 
   useEffect(() => {
-    if (!state?.orderNumber) return
+    if (!confirmState?.orderNumber) return
+    localStorage.setItem(CONFIRM_DATA_KEY, JSON.stringify(confirmState))
     const supportsNotifications = 'Notification' in window && 'serviceWorker' in navigator
     if (!supportsNotifications || hasBeenAsked()) return
     const t = setTimeout(() => setShowNotifModal(true), 1500)
     return () => clearTimeout(t)
-  }, [state])
+  }, [confirmState])
 
-  // If navigated directly without state, redirect home
-  if (!state?.orderNumber) {
+  // If navigated directly without state or stored data, redirect home
+  if (!confirmState?.orderNumber) {
     navigate('/', { replace: true })
     return null
   }
 
-  const { orderNumber, orderId, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = state
+  const { orderNumber, orderId, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = confirmState
 
   // Persist active order for auto-redirect on next app open
   useEffect(() => {
@@ -94,11 +110,11 @@ export default function ConfirmPage() {
           ✅
         </div>
 
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.2rem' }}>
           ¡Pedido recibido!
         </h1>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-          Gracias, {customerName} 🙌
+        <p style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent)', marginBottom: '2rem' }}>
+          {customerName} 🙌
         </p>
 
         {/* ── Número de pedido ── */}
@@ -112,10 +128,30 @@ export default function ConfirmPage() {
           </p>
         </div>
 
+        {/* ── Ítems del pedido ── */}
+        <div style={{
+          background: 'var(--surface)', borderRadius: 14,
+          padding: '1.25rem', marginBottom: '1.5rem', textAlign: 'left',
+        }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem', fontWeight: 600 }}>
+            Tu pedido
+          </p>
+          {(cart ?? []).map((item, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+              <span>{item.quantity}× {item.name}</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>${(item.priceUsd * item.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+          <div style={{ borderTop: '1px solid #2A2A2A', marginTop: '0.6rem', paddingTop: '0.6rem', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+            <span>Total</span>
+            <span style={{ color: 'var(--accent)' }}>${total.toFixed(2)} | Bs {totalBs}</span>
+          </div>
+        </div>
+
         {/* ── Estado + instrucción ── */}
         <div style={{
           background: 'var(--surface)', borderRadius: 14,
-          padding: '1.25rem', marginBottom: '1.5rem',
+          padding: '1.25rem', marginBottom: '2rem',
           textAlign: 'left',
         }}>
           <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>¿Qué sigue?</p>
@@ -128,21 +164,9 @@ export default function ConfirmPage() {
           </ol>
         </div>
 
-        {/* ── Total ── */}
-        <div style={{
-          background: 'var(--surface)', borderRadius: 14,
-          padding: '1rem 1.25rem', marginBottom: '2rem',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Total pagado</span>
-          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>
-            ${total.toFixed(2)} | Bs {totalBs}
-          </span>
-        </div>
-
         {/* ── CTA principal: seguir pedido ── */}
         <button
-          onClick={() => navigate(`/order/${state.orderId}`)}
+          onClick={() => navigate(`/order/${orderId}`)}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
             width: '100%', padding: '0.95rem',

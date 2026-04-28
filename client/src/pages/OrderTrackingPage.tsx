@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import Layout from '../components/Layout'
 import { publicApi, type TrackingOrder } from '../api/api'
+import { clearConfirmData } from './ConfirmPage'
 
 // Backend URL for socket.io (direct WS, bypasses nginx — WebSocket doesn't use CORS)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'
@@ -177,6 +178,7 @@ export default function OrderTrackingPage() {
       if (saved && saved.orderId === orderId) {
         if (TERMINAL_STATUSES.includes(o.status)) {
           clearActiveOrder()
+          clearConfirmData()
           localStorage.removeItem('yebrams_cart')
         } else {
           saveActiveOrder({ ...saved, status: o.status })
@@ -304,7 +306,7 @@ export default function OrderTrackingPage() {
 
         {/* ── Header ── */}
         <div style={{ padding: '1.25rem 1rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>← Menú</button>
+          <button onClick={() => navigate('/confirm')} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>← Confirmación</button>
           <div style={{ flex: 1, textAlign: 'center' }}>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Pedido</p>
             <p style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--accent)', letterSpacing: '-1px' }}>#{orderNum}</p>
