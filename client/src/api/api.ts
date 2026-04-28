@@ -106,7 +106,7 @@ export interface WebOrderBody {
   address?: string
   items: { menuItemId: string; quantity: number }[]
   proofImageBase64?: string
-  paymentMethod?: 'PAGO_MOVIL' | 'CASH'
+  paymentMethod?: 'PAGO_MOVIL' | 'CASH' | 'POS'
   paymentReference?: string
 }
 

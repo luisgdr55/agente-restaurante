@@ -273,6 +273,7 @@ enum DeliveryType {
 enum PaymentMethod {
   PAGO_MOVIL
   CASH_ON_DELIVERY
+  POS
 }
 
 enum DiscountType {

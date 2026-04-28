@@ -175,7 +175,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
           switch (status) {
             case 'PAYMENT_CONFIRMED':
               logger.info({ orderId: id, customerPhone }, '[push] firing PAYMENT_CONFIRMED');
-              await sendPushToPhone(customerPhone, '✅ Pago confirmado', 'Tu pedido está en cocina 👨‍🍳', `/order/${order.id}`);
+              await sendPushToPhone(
+                customerPhone,
+                '✅ Pago confirmado',
+                order.deliveryType === 'PICKUP' ? '👨‍🍳 Tu pedido se está preparando' : 'Tu pedido está en cocina 👨‍🍳',
+                `/order/${order.id}`,
+              );
               break;
             case 'PAYMENT_REJECTED':
               logger.info({ orderId: id, customerPhone }, '[push] firing PAYMENT_REJECTED');
@@ -189,9 +194,14 @@ export async function dashboardRoutes(app: FastifyInstance) {
             }
             case 'READY':
               logger.info({ orderId: id, customerPhone }, '[push] firing READY');
-              await sendPushToPhone(customerPhone, '🍗 Pedido listo',
-                order.deliveryType === 'DELIVERY' ? 'Tu pedido está listo, sale en camino pronto 🛵' : 'Ya puedes pasar a buscarlo 🏃',
-                `/order/${order.id}`);
+              await sendPushToPhone(
+                customerPhone,
+                order.deliveryType === 'PICKUP' ? '🏪 Pedido listo' : '🍗 Pedido listo',
+                order.deliveryType === 'PICKUP'
+                  ? '🏪 Tu pedido está listo, puedes pasar a retirarlo'
+                  : 'Tu pedido está listo, sale en camino pronto 🛵',
+                `/order/${order.id}`,
+              );
               break;
             case 'OUT_FOR_DELIVERY':
               logger.info({ orderId: id, customerPhone }, '[push] firing OUT_FOR_DELIVERY');
@@ -1569,7 +1579,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       address?: string;
       items: { menuItemId: string; quantity: number }[];
       proofImageBase64?: string;
-      paymentMethod?: 'PAGO_MOVIL' | 'CASH';
+      paymentMethod?: 'PAGO_MOVIL' | 'CASH' | 'POS';
       paymentReference?: string;
     };
   }>('/api/public/orders', async (req, reply) => {
@@ -1627,15 +1637,16 @@ export async function dashboardRoutes(app: FastifyInstance) {
         : 0;
 
       const isCash = paymentMethod === 'CASH' && deliveryType === 'PICKUP';
+      const isPos  = paymentMethod === 'POS'  && deliveryType === 'PICKUP';
 
       const order = await createOrder({
         customerId: customer.id,
         cart,
         deliveryType,
         ...(address ? { deliveryAddress: address.trim() } : {}),
-        paymentMethod: isCash ? 'CASH_ON_DELIVERY' : 'PAGO_MOVIL',
+        paymentMethod: isCash ? 'CASH_ON_DELIVERY' : isPos ? 'POS' : 'PAGO_MOVIL',
         deliveryFeeUsd,
-        ...(!isCash && proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
+        ...(!isCash && !isPos && proofImageBase64 ? { paymentImageUrl: proofImageBase64 } : {}),
       });
 
       if (paymentReference?.trim()) {
@@ -1645,7 +1656,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         });
       }
 
-      const targetStatus = !isCash && proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
+      const targetStatus = !isCash && !isPos && proofImageBase64 ? 'PAYMENT_UPLOADED' : 'PENDING_PAYMENT';
       await updateOrderStatus(order.id, targetStatus);
 
       const full = await prisma.order.findUnique({

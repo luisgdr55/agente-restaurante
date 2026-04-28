@@ -35,6 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 const PAYMENT_LABELS: Record<string, string> = {
   PAGO_MOVIL:       '📱 Pago Móvil',
   CASH_ON_DELIVERY: '💵 Efectivo',
+  POS:              '🏧 Punto de venta',
 };
 
 const TERMINAL = ['DELIVERED', 'CANCELLED'];
@@ -259,8 +260,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
             </div>
           )}
 
-          {/* Efectivo pendiente → enviar a cocina */}
-          {order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'CASH_ON_DELIVERY' && (
+          {/* Efectivo/POS pendiente → enviar a cocina */}
+          {order.status === 'PENDING_PAYMENT' && (order.paymentMethod === 'CASH_ON_DELIVERY' || order.paymentMethod === 'POS') && (
             <button className="btn btn-sm btn-primary" disabled={loading}
               onClick={() => doAction('IN_KITCHEN')}>
               🍳 Enviar a cocina

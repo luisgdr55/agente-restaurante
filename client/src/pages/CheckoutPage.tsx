@@ -59,7 +59,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState(() => localStorage.getItem('yebrams_customer_address') ?? '')
   const [savedAddr, setSavedAddr] = useState<string | null>(null)
   const [useSaved, setUseSaved] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'PAGO_MOVIL' | 'CASH'>('PAGO_MOVIL')
+  const [paymentMethod, setPaymentMethod] = useState<'PAGO_MOVIL' | 'CASH' | 'POS'>('PAGO_MOVIL')
   const [paymentRef, setPaymentRef] = useState('')
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState<string | null>(null)
@@ -282,7 +282,8 @@ export default function CheckoutPage() {
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {([
                 { value: 'PAGO_MOVIL', label: '📱 Pago Móvil' },
-                { value: 'CASH',       label: '💵 Efectivo / Divisas' },
+                { value: 'CASH',       label: '💵 Efectivo' },
+                { value: 'POS',        label: '🏧 Punto de Venta' },
               ] as const).map(({ value, label }) => (
                 <button
                   key={value}
@@ -386,6 +387,22 @@ export default function CheckoutPage() {
             <p style={{ fontWeight: 700, color: '#10b981', marginBottom: '0.2rem' }}>Pagas al retirar</p>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
               Efectivo, dólares o cualquier divisa. Tu pedido quedará registrado y listo al llegar.
+            </p>
+          </section>
+        )}
+
+        {/* ── Punto de Venta — info ── */}
+        {paymentMethod === 'POS' && (
+          <section style={{
+            background: 'var(--surface)', border: '1px solid #333',
+            borderRadius: 12, padding: '1rem', marginBottom: '1.25rem',
+            animation: 'fadeInUp 0.35s ease-out both',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>🏧</div>
+            <p style={{ fontWeight: 700, color: 'var(--text)', marginBottom: '0.2rem' }}>Pagas con punto de venta al retirar</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              Punto de venta o Biopago disponible en el local.
             </p>
           </section>
         )}
