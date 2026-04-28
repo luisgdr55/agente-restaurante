@@ -152,8 +152,32 @@ export default function OrderCard({ order, onRefresh }: Props) {
   const isDone = TERMINAL.includes(order.status);
   const driverQrUrl = `${PWA_URL}/driver/${order.id}`;
 
+  const isReady = order.status === 'READY';
+
   return (
-    <div className="card" style={{ borderTop: `3px solid ${borderColor}`, opacity: isDone ? 0.75 : 1 }}>
+    <div className="card" style={{
+      borderTop: `3px solid ${borderColor}`,
+      opacity: isDone ? 0.75 : 1,
+      animation: isReady ? 'readyPulse 1.6s ease-in-out infinite' : 'none',
+    }}>
+      {isReady && (
+        <style>{`
+          @keyframes readyPulse {
+            0%, 100% { box-shadow: 0 0 0px #22c55e; }
+            50%       { box-shadow: 0 0 20px #22c55e; }
+          }
+        `}</style>
+      )}
+      {isReady && (
+        <div style={{
+          background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)',
+          borderRadius: 8, padding: '0.45rem 0.75rem', marginBottom: '0.5rem',
+          textAlign: 'center', fontWeight: 700, fontSize: '0.85rem', color: '#22c55e',
+          letterSpacing: '0.04em',
+        }}>
+          ✅ LISTO PARA ENTREGAR
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center">
         <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>#{orderNum}</span>

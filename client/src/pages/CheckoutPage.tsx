@@ -69,6 +69,8 @@ export default function CheckoutPage() {
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => { window.scrollTo(0, 0) }, [])
+
   useEffect(() => {
     if (cart.length === 0) navigate('/', { replace: true })
   }, [cart, navigate])
