@@ -329,9 +329,9 @@ export default function OrderTrackingPage() {
           <div style={{ margin: '1rem', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 14, padding: '1.25rem' }}>
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⚠️</div>
-              <p style={{ fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}>Necesitamos verificar tu pago</p>
+              <p style={{ fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}>¿Hubo algún problema con tu pago? 🤔</p>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-                Por favor sube un nuevo comprobante o cancela si lo prefieres.
+                Intenta subir el comprobante nuevamente, estamos aquí para ayudarte.
               </p>
             </div>
 
@@ -360,7 +360,7 @@ export default function OrderTrackingPage() {
             )}
 
             <button onClick={() => setCancelConfirmOpen(true)} disabled={cancelling}
-              style={{ width: '100%', padding: '0.65rem', background: 'transparent', border: '1px solid #3A3A3A', color: 'var(--text-muted)', borderRadius: 10, fontWeight: 600, fontSize: '0.85rem' }}>
+              style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: 'none', color: '#555', fontSize: '0.75rem', marginTop: '0.25rem' }}>
               {cancelling ? 'Cancelando...' : 'Cancelar pedido'}
             </button>
 
@@ -463,11 +463,11 @@ function statusLabel(status: string, deliveryType: string | null): string {
     case 'PENDING_PAYMENT':            return '⏳ Esperando confirmación de pago'
     case 'PAYMENT_UPLOADED':           return '📤 Comprobante enviado, revisando...'
     case 'PAYMENT_CONFIRMED':          return '✅ Pago confirmado'
-    case 'IN_KITCHEN':                 return '👨‍🍳 Tu pedido está en cocina'
+    case 'IN_KITCHEN':                 return '👨‍🍳 Tu pedido se está preparando'
     case 'READY':
       return deliveryType === 'PICKUP'
         ? '🏪 ¡Tu pedido está listo! Pasa a retirarlo'
-        : '🍗 ¡Listo! Preparando envío'
+        : '🍗 ¡Tu pedido está listo! Estamos gestionando la entrega'
     case 'AWAITING_DRIVER_ASSIGNMENT': return '🛵 Asignando motorizado...'
     case 'OUT_FOR_DELIVERY':           return '🛵 Tu pedido va en camino'
     case 'DELIVERED':                  return '🎉 ¡Pedido entregado!'
