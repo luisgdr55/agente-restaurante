@@ -472,29 +472,49 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
 - Dos cajeras/turnos por día (AM/PM)
 - Modelo de datos `CashRegisterShift` + endpoints `/api/cash/shifts/...`
 
-## Pendientes próxima sesión
+## Pendientes priorizados (feedback cliente 2026-04-28)
 
-- [ ] **Bug #0018**: pedido PICKUP+referencia saltó paso IN_KITCHEN en barra de progreso — investigar con query en Railway:
+### 🔴 Alta prioridad — bugs / UX crítico
+
+- [ ] **Push PAYMENT_REJECTED con motivo**: la push notification de rechazo debe incluir el `cancelReason` en el body del mensaje. Actualmente envía texto genérico "Tu pago no fue verificado" — cambiar en `dashboard.routes.ts` a "❌ Pago rechazado: {motivo}" si hay motivo, o mensaje genérico si no.
+
+- [ ] **Notificación rechazo inmediata en PWA sin F5**: verificar que el socket `order:updated` llega al cliente en `OrderTrackingPage` cuando el admin rechaza el pago. El `PAYMENT_REJECTED` debe mostrarse instantáneamente. Si no llega, revisar que `serializeOrder()` se aplica en el `emitOrderUpdated` del handler de rechazo en `dashboard.routes.ts`.
+
+- [ ] **Costo delivery por zonas (cerca / medio / lejos)**: en Checkout, el cliente selecciona su zona y el costo de delivery se suma al total del pedido. Implementar con config en DB (tabla `SystemConfig` clave `DELIVERY_ZONES` = JSON `[{nombre, costo}]`). El costo se calcula en el total, **no** en el subtotal de cada ítem. El dashboard muestra la zona en la OrderCard.
+
+- [ ] **Avisar al motorizado cuando pedido pasa a IN_KITCHEN**: al confirmar pago (→ IN_KITCHEN automáticamente), si la orden ya tiene `driverPhone` asignado, enviar mensaje WhatsApp/push al motorizado: "📦 Pedido #XXXX ya está en cocina, prepárate para recogerlo". Actualmente el motorizado no sabe cuándo el pedido entra a cocina.
+
+- [ ] **Ticket WhatsApp con link /driver/:id**: al pasar a AWAITING_DRIVER_ASSIGNMENT o al asignar motorizado, enviar al número del restaurante (admin) un mensaje WhatsApp prellenado con el ticket completo: `#pedido, cliente, ítems, dirección, referencia, link /driver/:id`. La encargada reenvía este mensaje al motorizado. El link /driver/:id ya funciona — solo falta el mensaje formateado hacia el admin.
+
+### 🟡 Media prioridad — features en curso
+
+- [ ] **Feature 9 — GPS cliente en Checkout**: botón "📍 Usar mi ubicación" en Checkout. Las coordenadas se guardan en la orden. Dashboard muestra link maps.google.com. QR motorizado incluye link de navegación. Ver spec en FEATURES.md.
+
+- [ ] **Feature 10 — Stories de promos**: carrusel de fotos entre Hero y tabs del menú. Publicación desde sección Promos del dashboard. Ver spec en FEATURES.md.
+
+- [ ] **Feature 11 — Módulo de Caja**: nueva pestaña dashboard. Ver spec completo en FEATURES.md.
+  - Migración Prisma `CashRegisterShift`
+  - `src/api/cash.routes.ts`
+  - `dashboard/src/pages/CashRegisterPage.tsx`
+  - SheetJS `npm install xlsx` + export a plantilla del restaurante
+
+### 🟢 Baja prioridad — mejoras y deuda técnica
+
+- [ ] **Feature 7 — Multi-pedido motorizado**: pendiente feedback del dueño sobre si lo usarán. Ver spec en FEATURES.md.
+
+- [ ] **Feature 8 — Saludo personalizado LLM en hero PWA**: `GET /api/public/greeting/:phone` con cache Redis 1h. Ver spec en FEATURES.md.
+
+- [ ] **Menú — categoría Bebidas**: el usuario enviará la imagen. Agregar categoría y cargar en seed/DB cuando llegue el material.
+
+- [ ] **Deuda técnica — KitchenPage socket**: migrar a singleton compartido en lugar de crear conexión propia en cada montaje del componente.
+
+### 🔍 Investigar
+
+- [ ] **Bug #0018**: pedido PICKUP+referencia saltó paso IN_KITCHEN en barra de progreso. Query diagnóstico en Railway:
   ```sql
   SELECT id, "orderNumber", status, "deliveryType", "paymentMethod", "paymentReference"
   FROM orders WHERE "orderNumber" = 18
   ```
-
-- [ ] **Feature 11**: Módulo de Caja — implementar (ver FEATURES.md para spec completo)
-  - Migración Prisma `CashRegisterShift`
-  - `src/api/cash.routes.ts`
-  - `dashboard/src/pages/CashRegisterPage.tsx`
-  - SheetJS install + export a plantilla
-
-- [ ] **Feature**: GPS del cliente en Checkout
-
-- [ ] **Menú**: agregar categoría "Bebidas" con imagen (el usuario la enviará)
-
-- [ ] **Feature**: saludo personalizado LLM en hero de la PWA (Feature 8)
-
-- [ ] **Deuda técnica**: cocina (`KitchenPage.tsx`) migrar socket a singleton compartido
-
-- [ ] **Verificar**: beep en pedidos PICKUP+efectivo — confirmar que llega en todos los casos
 
 ## Notas de deploy (Railway)
 
