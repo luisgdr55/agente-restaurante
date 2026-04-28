@@ -46,6 +46,96 @@ El dashboard muestra link a Google Maps.
 El QR del motorizado incluye maps.google.com/?q={lat},{lng}
 para navegación directa.
 
+## FEATURE 11 — Módulo de Caja
+
+### Objetivo
+Panel "Caja" en el dashboard para control de turnos de cajeras, cuadre de caja
+y export automático a la plantilla Excel del restaurante.
+
+### Flujo de dos turnos por día
+```
+Turno mañana:  [Apertura AM]  →  [Cierre AM / Mediodía]
+Turno tarde:   [Apertura PM]  →  [Cierre PM / Noche]
+```
+
+### Apertura de turno
+- Cajera selecciona su nombre (lista configurable en Settings)
+- Ingresa el monto inicial de efectivo en caja (Bs)
+- Hora de apertura se registra automáticamente (Venezuela UTC-4)
+- Crea un registro `CashRegisterShift` en BD con estado `OPEN`
+
+### Cierre de turno
+El sistema calcula automáticamente del período de turno:
+- Total en ventas Pago Móvil (confirmadas) en Bs y USD
+- Total en ventas Efectivo (CASH_ON_DELIVERY entregadas) en Bs y USD
+- Total en ventas POS (confirmadas) en Bs y USD
+- Número de pedidos por método de pago
+- Total general del período
+
+La cajera ingresa manualmente:
+- Efectivo real contado en caja al cierre (Bs)
+- Total sistema de comandas del restaurante (Bs) — ingreso manual del sistema POS externo
+
+El sistema calcula y muestra:
+- Diferencia efectivo: `efectivo_contado − (efectivo_apertura + ventas_efectivo_calculadas)`
+- Diferencia comandas: `comandas_ingresadas − ventas_pago_movil_calculadas`
+- Badge: 🟢 Cuadre exacto / 🟡 Diferencia < 5% / 🔴 Diferencia > 5%
+
+### Historial de turnos
+Tabla con todos los turnos registrados:
+- Cajera, fecha, turno (AM/PM), apertura, cierre
+- Ventas calculadas vs ingresadas
+- Diferencia y badge de cuadre
+
+### Export a plantilla Excel
+- Dashboard Settings permite subir una plantilla `.xlsx` del restaurante (vía SheetJS)
+- El sistema detecta o permite mapear manualmente las celdas clave de la plantilla:
+  `fecha`, `cajera`, `monto_apertura`, `ventas_efectivo`, `ventas_pago_movil`,
+  `ventas_pos`, `total_calculado`, `efectivo_contado`, `diferencia`, etc.
+- Al cerrar turno: botón "Descargar Excel" — carga la plantilla guardada, llena
+  las celdas mapeadas con los datos del turno, descarga el archivo listo
+- Librería: **SheetJS (xlsx)** — `npm install xlsx`
+- Formato: `.xlsx` (preserva fórmulas y estilos de la plantilla original)
+
+### Modelo de datos (Prisma)
+```prisma
+model CashRegisterShift {
+  id              String    @id @default(cuid())
+  cashierName     String
+  shiftType       String    // 'AM' | 'PM'
+  openedAt        DateTime
+  closedAt        DateTime?
+  openingCash     Decimal   // efectivo inicial en Bs
+  closingCash     Decimal?  // efectivo contado al cierre
+  comandasTotal   Decimal?  // comandas ingresadas manualmente
+  calcCashSales   Decimal?  // calculado: ventas efectivo del período
+  calcMovilSales  Decimal?  // calculado: ventas pago móvil del período
+  calcPosSales    Decimal?  // calculado: ventas POS del período
+  calcTotal       Decimal?  // calculado: total del período
+  difference      Decimal?  // diferencia (contado - calculado)
+  status          String    @default("OPEN") // 'OPEN' | 'CLOSED'
+  createdAt       DateTime  @default(now())
+}
+```
+
+### Endpoints nuevos
+- `POST /api/cash/shifts/open` — abre turno
+- `POST /api/cash/shifts/:id/close` — cierra turno (calcula del período automático)
+- `GET /api/cash/shifts` — historial paginado
+- `GET /api/cash/shifts/:id/export` — devuelve JSON con datos para rellenar la plantilla
+- `PUT /api/cash/template` — guarda la plantilla base64 en BD o storage
+- `GET /api/cash/template` — descarga la plantilla para mapeo
+
+### Stack
+- Frontend: nueva pestaña "Caja" en NavBar dashboard
+- `CashRegisterPage.tsx` — vista principal con estado del turno activo + historial
+- `ExcelTemplateMapper.tsx` — componente para mapear celdas de la plantilla
+- Backend: `src/api/cash.routes.ts`
+- BD: migración Prisma + tabla `CashRegisterShift`
+- SheetJS: fill-and-download en el frontend (no requiere servidor)
+
+---
+
 ## FEATURE 7 — Multi-pedido por motorizado
 Un motorizado puede llevar varios pedidos simultáneos.
 El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"

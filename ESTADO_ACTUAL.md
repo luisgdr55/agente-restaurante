@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-25
+Última actualización: 2026-04-27
 
 ## Infraestructura deployada
 | Servicio | URL | Estado |
@@ -393,6 +393,85 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
 ### ✅ UX: PAYMENT_REJECTED tono ámbar (ya en continuación 2, confirmado)
 - Fondo/borde ámbar `rgba(245,158,11,…)`, icono ⚠️ 1.5rem, texto menos agresivo, botón cancelar neutro
 
+### ✅ SW auto-update silencioso
+- `client/public/sw.js`: `install` llama `self.skipWaiting()` directamente — SW nunca queda en "waiting"
+- `client/public/sw.js`: eliminado listener de `message` con `SKIP_WAITING`
+- `client/src/App.tsx`: `UpdateToast` eliminado completamente (estado, lógica `updatefound`, JSX, botones, animación)
+- `client/src/App.tsx`: nuevo componente `AutoUpdate` — solo escucha `controllerchange` y ejecuta `location.reload()` silencioso
+- Flujo: deploy → SW nuevo instala → `skipWaiting()` inmediato → `controllerchange` → `reload()` automático sin intervención del usuario
+
+### ✅ Features planning (FEATURES.md)
+- Feature 10 agregado: Stories de promos con foto, vinculación a ítems del menú, precio especial opcional, publicación instantánea desde sección Promos del dashboard existente
+- Nota arquitectura multi-tenant agregada como feature futuro planificado
+
+## Sesión 2026-04-27 — UX refinements + POS payment + redesign dashboard ✅
+
+### ✅ ConfirmPage: nombre prominente + lista de ítems
+- Nombre del cliente en acento dorado 1.15rem bold (antes muted small)
+- Nueva card "Tu pedido" con items `cantidad × nombre → $subtotal` y total al pie
+- Card separada "Total pagado" eliminada (fusionada en la card de ítems)
+- Estado persistido en `localStorage` clave `yebrams_confirm_data`:
+  - `ConfirmPage` guarda en `useEffect` al montar
+  - Carga desde localStorage como fallback si `location.state` es null
+  - `clearConfirmData()` exportada y llamada desde `OrderTrackingPage` al alcanzar estado terminal
+
+### ✅ OrderTrackingPage: botón "← Confirmación"
+- Botón de cabecera cambiado de `← Menú` (iba a `/`) a `← Confirmación` (va a `/confirm`)
+- `ConfirmPage` reconstruye desde localStorage si el usuario navega directo sin router state
+
+### ✅ POS como método de pago para PICKUP
+- `prisma/schema.prisma`: `enum PaymentMethod` extendido con `POS`
+- `prisma/migrations/20260427000001_add_pos_payment/migration.sql`: `ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'POS'`
+- `client/src/pages/CheckoutPage.tsx`: selector 3 botones (Pago Móvil / Efectivo / 🏧 Punto de Venta); card neutral POS sin upload de comprobante
+- `client/src/api/api.ts`: `WebOrderBody.paymentMethod` incluye `'POS'`
+- `src/api/dashboard.routes.ts`: `isPos = paymentMethod === 'POS' && deliveryType === 'PICKUP'`; persiste `POS` en Prisma; no requiere comprobante
+- `src/orders/order-service.ts` (fix crítico build): `paymentMethod: PaymentMethod` importado de `@prisma/client` en lugar de literal union `'PAGO_MOVIL' | 'CASH_ON_DELIVERY'` — causaba TS2322 en Railway
+- `dashboard/src/components/OrderCard.tsx`: `PAYMENT_LABELS['POS'] = '🏧 Punto de venta'`; condición "Enviar a cocina" incluye `|| order.paymentMethod === 'POS'`
+
+### ✅ Push notifications PICKUP diferenciadas
+- `PAYMENT_CONFIRMED` PICKUP: "👨‍🍳 Tu pedido se está preparando" (vs delivery: "Tu pedido está en cocina")
+- `READY` PICKUP: "🏪 Tu pedido está listo, puedes pasar a retirarlo" (vs delivery: "sale en camino pronto 🛵")
+
+### ✅ OrderCard: rediseño completo (visual only)
+- Padding 1.5rem; border full 4px colored (vs solo borderTop)
+- `#XXXX` → 1.4rem / weight 900
+- Status badge → pill con padding generoso
+- Customer: name 1.1rem bold, phone muted line below
+- Delivery + payment + address → visual chips row (rounded surface background)
+- Items: quantity en círculo dorado 30px, name 0.95rem
+- Total: USD 1.3rem accent bold, Bs muted below; tiempo en esquina derecha
+- Action buttons: `minHeight: 48px`, `fontSize: 1rem`
+- READY: `STATUS_COLOR` corrected purple→green `#22c55e`; border 3px green; `readyPulse` glow; green banner; green action buttons
+
+### ✅ KitchenPage cards: rediseño completo (visual only, lógica intacta)
+- Padding 1.5rem; left border 5px
+- `#XXXX` → 1.4rem / weight 900 + status pill + badge URGENTE
+- Timer → 1.6rem bold, color dinámico verde/naranja/rojo por urgencia
+- Ítems: cantidad en círculo dorado 36px bold, nombre 1.15rem / weight 700 (elemento más visible)
+- Customer + delivery type + address → chip row
+- LISTO button → `minHeight: 56px`, 1.2rem bold, `#22c55e` green, border-radius 12
+
+### ✅ Micro-interacciones en todos los botones del dashboard
+CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
+- `.btn-micro`: `position:relative`, `overflow:hidden` (contención ripple), `transition 150ms`
+- `:hover:not(:disabled)`: `brightness(1.15)` + `translateY(-1px)` en 150ms
+- `:active:not(:disabled)`: `scale(0.95)` + `brightness(0.95)` en 60ms (snap rápido)
+- `:disabled`: pulse opacity 1→0.45 ciclo 1.8s (señal de "procesando")
+- Ripple JS: `onMouseDown` crea `<span class="ripple">` centrado en coordenada del click, diámetro = diagonal del botón (`√(w²+h²)×2`), anima scale(0→1) con opacity→0 en 420ms, se auto-elimina
+- `.btn-glow-confirm`: green `box-shadow` en hover (confirmar pago, marcar listo, cliente retiró)
+- `.btn-glow-reject`: red `box-shadow` en hover (rechazar, confirmar rechazo)
+- `.btn-glow-delivery`: indigo `box-shadow` en hover (salió a domicilio)
+- `.btn-glow-listo`: green intenso `box-shadow` en hover (LISTO cocina)
+- KitchenPage: `KITCHEN_STYLES` extendido con las mismas reglas; `addRipple` en LISTO, refresh y logout
+
+### ✅ FEATURES.md: Feature 11 — Módulo de Caja
+- Apertura de turno: cajera, monto inicial, hora automática
+- Cierre: cálculo automático del período + ingreso manual comandas + diferencia sobrante/faltante
+- Historial de turnos con badges de cuadre
+- Export inteligente: carga plantilla `.xlsx` existente del restaurante, mapea y rellena celdas específicas con SheetJS, descarga listo
+- Dos cajeras/turnos por día (AM/PM)
+- Modelo de datos `CashRegisterShift` + endpoints `/api/cash/shifts/...`
+
 ## Pendientes próxima sesión
 
 - [ ] **Bug #0018**: pedido PICKUP+referencia saltó paso IN_KITCHEN en barra de progreso — investigar con query en Railway:
@@ -401,14 +480,19 @@ Cliente abre PWA → elige ítems → checkout (nombre/tel/dirección/pago móvi
   FROM orders WHERE "orderNumber" = 18
   ```
 
+- [ ] **Feature 11**: Módulo de Caja — implementar (ver FEATURES.md para spec completo)
+  - Migración Prisma `CashRegisterShift`
+  - `src/api/cash.routes.ts`
+  - `dashboard/src/pages/CashRegisterPage.tsx`
+  - SheetJS install + export a plantilla
+
 - [ ] **Feature**: GPS del cliente en Checkout
 
 - [ ] **Menú**: agregar categoría "Bebidas" con imagen (el usuario la enviará)
 
-- [ ] **Feature**: saludo personalizado LLM en hero de la PWA
+- [ ] **Feature**: saludo personalizado LLM en hero de la PWA (Feature 8)
 
-- [ ] **Deuda técnica**: cocina (`KitchenPage.tsx`) migrar socket a singleton
-      compartido en lugar de crear conexión propia
+- [ ] **Deuda técnica**: cocina (`KitchenPage.tsx`) migrar socket a singleton compartido
 
 - [ ] **Verificar**: beep en pedidos PICKUP+efectivo — confirmar que llega en todos los casos
 
