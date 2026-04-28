@@ -6,6 +6,72 @@ import { ordersApi, driversApi } from '../api/api';
 
 const PWA_URL = import.meta.env.VITE_PWA_URL ?? 'https://yebramspedidos.up.railway.app';
 
+// ── Micro-interaction CSS (injected once per app) ─────────────────────────────
+
+const BUTTON_MICRO_STYLES = `
+.btn-micro {
+  position: relative !important;
+  overflow: hidden !important;
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease !important;
+  cursor: pointer;
+}
+.btn-micro:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+.btn-micro:active:not(:disabled) {
+  transform: scale(0.95) !important;
+  filter: brightness(0.95);
+  transition-duration: 60ms !important;
+}
+.btn-micro:disabled {
+  cursor: not-allowed;
+  animation: btnLoading 1.8s ease-in-out infinite;
+}
+@keyframes btnLoading {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.btn-micro > .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.28);
+  transform: scale(0);
+  animation: rippleExpand 420ms ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleExpand {
+  to { transform: scale(1); opacity: 0; }
+}
+.btn-glow-confirm:hover:not(:disabled) { box-shadow: 0 4px 18px rgba(34,197,94,0.5); }
+.btn-glow-reject:hover:not(:disabled)  { box-shadow: 0 4px 18px rgba(239,68,68,0.5); }
+.btn-glow-delivery:hover:not(:disabled){ box-shadow: 0 4px 18px rgba(99,102,241,0.5); }
+`;
+
+function injectButtonStyles() {
+  const id = 'btn-micro-styles';
+  if (!document.getElementById(id)) {
+    const el = document.createElement('style');
+    el.id = id;
+    el.textContent = BUTTON_MICRO_STYLES;
+    document.head.appendChild(el);
+  }
+}
+
+function addRipple(e: React.MouseEvent<HTMLButtonElement>) {
+  if ((e.currentTarget as HTMLButtonElement).disabled) return;
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const size = Math.ceil(Math.sqrt(rect.width ** 2 + rect.height ** 2) * 2);
+  const span = document.createElement('span');
+  span.className = 'ripple';
+  span.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px`;
+  btn.appendChild(span);
+  setTimeout(() => span.remove(), 430);
+}
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT:            '⏳ Pend. pago',
   PAYMENT_UPLOADED:           '📤 Comp. subido',
@@ -62,6 +128,8 @@ export default function OrderCard({ order, onRefresh }: Props) {
   const [proofLoading, setProofLoading] = useState(false);
   const [ocrResult, setOcrResult] = useState<Record<string, string | null> | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+
+  useEffect(() => { injectButtonStyles(); }, []);
 
   useEffect(() => {
     if (order.status === 'AWAITING_DRIVER_ASSIGNMENT') {
@@ -222,29 +290,16 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
       {/* Delivery + payment chips */}
       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
-        <span style={{
-          fontSize: '0.78rem', fontWeight: 600,
-          padding: '0.3rem 0.7rem', borderRadius: 8,
-          background: 'var(--surface2)', color: 'var(--text2)',
-        }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600, padding: '0.3rem 0.7rem', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text2)' }}>
           {order.deliveryType === 'DELIVERY' ? '🛵 Delivery' : '🏃 Pickup'}
         </span>
         {order.paymentMethod && (
-          <span style={{
-            fontSize: '0.78rem', fontWeight: 600,
-            padding: '0.3rem 0.7rem', borderRadius: 8,
-            background: 'var(--surface2)', color: 'var(--text2)',
-          }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, padding: '0.3rem 0.7rem', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text2)' }}>
             {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
           </span>
         )}
         {order.deliveryAddress && (
-          <span style={{
-            fontSize: '0.78rem', fontWeight: 500,
-            padding: '0.3rem 0.7rem', borderRadius: 8,
-            background: 'var(--surface2)', color: 'var(--text2)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
-          }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 500, padding: '0.3rem 0.7rem', borderRadius: 8, background: 'var(--surface2)', color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
             📍 {order.deliveryAddress}
           </span>
         )}
@@ -254,8 +309,9 @@ export default function OrderCard({ order, onRefresh }: Props) {
       {order.hasPaymentImage && (
         <div style={{ marginBottom: '0.85rem' }}>
           <button
-            className="btn btn-sm btn-ghost"
+            className="btn btn-sm btn-ghost btn-micro"
             style={{ fontSize: '0.8rem', color: '#3b82f6', width: '100%', border: '1px solid #3b82f633', borderRadius: 8, padding: '0.45rem' }}
+            onMouseDown={addRipple}
             onClick={() => void openProof()}
           >
             Ver comprobante 🧾
@@ -263,14 +319,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
         </div>
       )}
       {!order.hasPaymentImage && order.paymentReference && (
-        <div style={{
-          marginBottom: '0.85rem',
-          fontSize: '0.82rem',
-          color: 'var(--text2)',
-          background: 'var(--surface2)',
-          borderRadius: 8,
-          padding: '0.45rem 0.75rem',
-        }}>
+        <div style={{ marginBottom: '0.85rem', fontSize: '0.82rem', color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '0.45rem 0.75rem' }}>
           📋 Ref: <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.92rem' }}>
             {order.paymentReference}
           </span>
@@ -278,24 +327,10 @@ export default function OrderCard({ order, onRefresh }: Props) {
       )}
 
       {/* Items */}
-      <div style={{
-        borderTop: '1px solid var(--surface2)',
-        borderBottom: '1px solid var(--surface2)',
-        padding: '0.75rem 0',
-        marginBottom: '0.85rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.45rem',
-      }}>
+      <div style={{ borderTop: '1px solid var(--surface2)', borderBottom: '1px solid var(--surface2)', padding: '0.75rem 0', marginBottom: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
         {order.items.map((item, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <span style={{
-              minWidth: 30, height: 30, borderRadius: '50%',
-              background: 'var(--accent)', color: '#000',
-              fontWeight: 800, fontSize: '0.88rem',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}>
+            <span style={{ minWidth: 30, height: 30, borderRadius: '50%', background: 'var(--accent)', color: '#000', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {item.quantity}
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>{item.menuItem.name}</span>
@@ -304,10 +339,7 @@ export default function OrderCard({ order, onRefresh }: Props) {
       </div>
 
       {/* Total + time */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-        marginBottom: isDone ? 0 : '1rem',
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: isDone ? 0 : '1rem' }}>
         <div>
           <div style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '1.3rem', lineHeight: 1 }}>
             ${parseFloat(order.totalUsd).toFixed(2)}
@@ -327,14 +359,18 @@ export default function OrderCard({ order, onRefresh }: Props) {
           {(order.status === 'PAYMENT_UPLOADED' ||
             (order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'PAGO_MOVIL' && order.paymentReference)) && (
             <div className="flex gap-1">
-              <button className="btn btn-sm btn-success"
+              <button className="btn btn-sm btn-success btn-micro btn-glow-confirm"
                 style={{ flex: 1, minHeight: 48, fontSize: '1rem' }}
-                disabled={loading} onClick={() => doAction('PAYMENT_CONFIRMED')}>
+                disabled={loading}
+                onMouseDown={addRipple}
+                onClick={() => doAction('PAYMENT_CONFIRMED')}>
                 ✅ Confirmar pago
               </button>
-              <button className="btn btn-sm btn-danger"
+              <button className="btn btn-sm btn-danger btn-micro btn-glow-reject"
                 style={{ flex: 1, minHeight: 48, fontSize: '1rem' }}
-                disabled={loading} onClick={() => setRejectOpen(true)}>
+                disabled={loading}
+                onMouseDown={addRipple}
+                onClick={() => setRejectOpen(true)}>
                 ❌ Rechazar
               </button>
             </div>
@@ -342,9 +378,11 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
           {/* Cash/POS → kitchen */}
           {order.status === 'PENDING_PAYMENT' && (order.paymentMethod === 'CASH_ON_DELIVERY' || order.paymentMethod === 'POS') && (
-            <button className="btn btn-sm btn-primary"
+            <button className="btn btn-sm btn-primary btn-micro"
               style={{ minHeight: 48, fontSize: '1rem' }}
-              disabled={loading} onClick={() => doAction('IN_KITCHEN')}>
+              disabled={loading}
+              onMouseDown={addRipple}
+              onClick={() => doAction('IN_KITCHEN')}>
               🍳 Enviar a cocina
             </button>
           )}
@@ -357,19 +395,18 @@ export default function OrderCard({ order, onRefresh }: Props) {
           )}
 
           {order.status === 'IN_KITCHEN' && (
-            <button className="btn btn-sm btn-success"
+            <button className="btn btn-sm btn-success btn-micro btn-glow-confirm"
               style={{ minHeight: 48, fontSize: '1rem' }}
-              disabled={loading} onClick={() => doAction('READY')}>
+              disabled={loading}
+              onMouseDown={addRipple}
+              onClick={() => doAction('READY')}>
               🎉 Marcar como listo
             </button>
           )}
 
           {/* Assign driver panel */}
           {order.status === 'AWAITING_DRIVER_ASSIGNMENT' && (
-            <div style={{
-              background: 'var(--surface2)', borderRadius: 10,
-              padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem',
-            }}>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ec4899' }}>
                 🛵 Asignar motorizado
               </div>
@@ -390,16 +427,18 @@ export default function OrderCard({ order, onRefresh }: Props) {
                   />
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
                     <button
-                      className="btn btn-sm btn-primary"
+                      className="btn btn-sm btn-primary btn-micro"
                       style={{ flex: 1, minHeight: 44 }}
                       disabled={assigning || !adHocName.trim() || !adHocPhone.trim()}
+                      onMouseDown={addRipple}
                       onClick={() => void doAssignAdHoc()}
                     >
                       {assigning ? 'Asignando...' : '📲 Asignar y notificar'}
                     </button>
                     {drivers.length > 0 && (
-                      <button className="btn btn-sm btn-ghost"
+                      <button className="btn btn-sm btn-ghost btn-micro"
                         style={{ fontSize: '0.78rem' }}
+                        onMouseDown={addRipple}
                         onClick={() => { setAdHocMode(false); setAdHocName(''); setAdHocPhone(''); }}>
                         Cancelar
                       </button>
@@ -419,15 +458,17 @@ export default function OrderCard({ order, onRefresh }: Props) {
                     ))}
                   </select>
                   <button
-                    className="btn btn-sm btn-primary"
+                    className="btn btn-sm btn-primary btn-micro"
                     style={{ minHeight: 44 }}
                     disabled={assigning || !selectedDriverId}
+                    onMouseDown={addRipple}
                     onClick={() => void doAssignDriver()}
                   >
                     {assigning ? 'Asignando...' : '📲 Asignar y notificar'}
                   </button>
-                  <button className="btn btn-sm btn-ghost"
+                  <button className="btn btn-sm btn-ghost btn-micro"
                     style={{ fontSize: '0.78rem', color: 'var(--text2)' }}
+                    onMouseDown={addRipple}
                     onClick={() => setAdHocMode(true)}>
                     ➕ Motorizado nuevo
                   </button>
@@ -439,9 +480,10 @@ export default function OrderCard({ order, onRefresh }: Props) {
           {/* READY actions — green buttons */}
           {order.status === 'READY' && order.deliveryType === 'DELIVERY' && (
             <button
-              className="btn btn-sm"
+              className="btn btn-sm btn-micro btn-glow-delivery"
               style={{ minHeight: 48, fontSize: '1rem', background: '#22c55e', color: '#fff', fontWeight: 700 }}
               disabled={sendingOut}
+              onMouseDown={addRipple}
               onClick={() => void doSendOutForDelivery()}
             >
               {sendingOut ? 'Procesando...' : '🛵 Salió a domicilio'}
@@ -450,9 +492,10 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
           {order.status === 'READY' && order.deliveryType !== 'DELIVERY' && (
             <button
-              className="btn btn-sm"
+              className="btn btn-sm btn-micro btn-glow-confirm"
               style={{ minHeight: 48, fontSize: '1rem', background: '#22c55e', color: '#fff', fontWeight: 700 }}
               disabled={loading}
+              onMouseDown={addRipple}
               onClick={() => doAction('DELIVERED')}
             >
               ✅ Cliente retiró
@@ -460,8 +503,9 @@ export default function OrderCard({ order, onRefresh }: Props) {
           )}
 
           {order.status === 'OUT_FOR_DELIVERY' && (
-            <button className="btn btn-sm btn-ghost"
+            <button className="btn btn-sm btn-ghost btn-micro"
               style={{ fontSize: '0.82rem', minHeight: 40 }}
+              onMouseDown={addRipple}
               onClick={() => setQrOpen(true)}>
               📱 Ver QR motorizado
             </button>
@@ -469,9 +513,10 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
           {/* Cancel */}
           {!['DELIVERED', 'CANCELLED', 'IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY'].includes(order.status) && (
-            <button className="btn btn-sm btn-ghost"
+            <button className="btn btn-sm btn-ghost btn-micro"
               style={{ color: 'var(--danger, #ef4444)', fontSize: '0.82rem', minHeight: 40 }}
               disabled={loading}
+              onMouseDown={addRipple}
               onClick={() => doAction('CANCELLED')}>
               Cancelar pedido
             </button>
@@ -481,18 +526,11 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
       {/* QR Modal Portal */}
       {qrOpen && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '1rem',
-        }} onClick={() => setQrOpen(false)}>
-          <div style={{
-            background: 'var(--surface)', borderRadius: 16, padding: '1.5rem',
-            maxWidth: 320, width: '100%', textAlign: 'center',
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.25rem' }}>
-              📱 QR Motorizado
-            </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => setQrOpen(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: '1.5rem', maxWidth: 320, width: '100%', textAlign: 'center' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.25rem' }}>📱 QR Motorizado</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text2)', marginBottom: '1rem' }}>
               Pedido #{orderNum} · {order.customer.name ?? order.customer.phone}
             </div>
@@ -502,7 +540,9 @@ export default function OrderCard({ order, onRefresh }: Props) {
             <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginBottom: '1rem', wordBreak: 'break-all' }}>
               {driverQrUrl}
             </div>
-            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }} onClick={() => setQrOpen(false)}>
+            <button className="btn btn-sm btn-ghost btn-micro" style={{ width: '100%' }}
+              onMouseDown={addRipple}
+              onClick={() => setQrOpen(false)}>
               Cerrar
             </button>
           </div>
@@ -512,34 +552,23 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
       {/* Proof Modal Portal */}
       {proofOpen && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '1rem', overflowY: 'auto',
-        }} onClick={() => setProofOpen(false)}>
-          <div style={{
-            background: 'var(--surface)', borderRadius: 16, padding: '1.25rem',
-            maxWidth: 420, width: '100%',
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.75rem' }}>
-              🧾 Comprobante — #{orderNum}
-            </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}
+          onClick={() => setProofOpen(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: '1.25rem', maxWidth: 420, width: '100%' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '0.75rem' }}>🧾 Comprobante — #{orderNum}</div>
 
             {proofLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text2)' }}>Cargando...</div>
             ) : proofUrl ? (
               <>
-                <img
-                  src={proofUrl}
-                  alt="Comprobante"
-                  style={{ width: '100%', borderRadius: 10, marginBottom: '0.75rem', display: 'block' }}
-                />
-                <button
-                  className="btn btn-sm btn-primary"
+                <img src={proofUrl} alt="Comprobante"
+                  style={{ width: '100%', borderRadius: 10, marginBottom: '0.75rem', display: 'block' }} />
+                <button className="btn btn-sm btn-primary btn-micro"
                   style={{ width: '100%', marginBottom: '0.5rem' }}
                   disabled={ocrLoading}
-                  onClick={() => void runOcr()}
-                >
+                  onMouseDown={addRipple}
+                  onClick={() => void runOcr()}>
                   {ocrLoading ? 'Extrayendo...' : '🔍 Extraer datos OCR'}
                 </button>
                 {ocrResult && (
@@ -565,7 +594,9 @@ export default function OrderCard({ order, onRefresh }: Props) {
               <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text2)' }}>Sin imagen</div>
             )}
 
-            <button className="btn btn-sm btn-ghost" style={{ width: '100%' }} onClick={() => setProofOpen(false)}>
+            <button className="btn btn-sm btn-ghost btn-micro" style={{ width: '100%' }}
+              onMouseDown={addRipple}
+              onClick={() => setProofOpen(false)}>
               Cerrar
             </button>
           </div>
@@ -585,12 +616,16 @@ export default function OrderCard({ order, onRefresh }: Props) {
             style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
           />
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <button className="btn btn-sm btn-danger" style={{ flex: 1, minHeight: 44 }}
+            <button className="btn btn-sm btn-danger btn-micro btn-glow-reject"
+              style={{ flex: 1, minHeight: 44 }}
               disabled={loading}
+              onMouseDown={addRipple}
               onClick={() => doAction('PAYMENT_REJECTED', rejectReason || undefined)}>
               Confirmar rechazo
             </button>
-            <button className="btn btn-sm btn-ghost" style={{ flex: 1, minHeight: 44 }}
+            <button className="btn btn-sm btn-ghost btn-micro"
+              style={{ flex: 1, minHeight: 44 }}
+              onMouseDown={addRipple}
               onClick={() => { setRejectOpen(false); setRejectReason(''); }}>
               Cancelar
             </button>

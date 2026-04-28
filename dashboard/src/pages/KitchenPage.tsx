@@ -58,6 +58,18 @@ function playUrgentSound() {
   } catch { /* ignore */ }
 }
 
+function addRipple(e: React.MouseEvent<HTMLButtonElement>) {
+  if ((e.currentTarget as HTMLButtonElement).disabled) return;
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const size = Math.ceil(Math.sqrt(rect.width ** 2 + rect.height ** 2) * 2);
+  const span = document.createElement('span');
+  span.className = 'ripple';
+  span.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px`;
+  btn.appendChild(span);
+  setTimeout(() => span.remove(), 430);
+}
+
 const KITCHEN_STATUSES = ['PAYMENT_CONFIRMED', 'IN_KITCHEN'];
 
 // ── CSS animations (injected once) ───────────────────────────────────────────
@@ -79,6 +91,43 @@ const KITCHEN_STYLES = `
 .kitchen-urgent {
   animation: kitchenPulseRed 0.8s ease-in-out infinite;
   border-left: 5px solid #ef4444 !important;
+}
+.btn-micro {
+  position: relative !important;
+  overflow: hidden !important;
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease !important;
+  cursor: pointer;
+}
+.btn-micro:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+.btn-micro:active:not(:disabled) {
+  transform: scale(0.95) !important;
+  filter: brightness(0.95);
+  transition-duration: 60ms !important;
+}
+.btn-micro:disabled {
+  cursor: not-allowed;
+  animation: btnLoading 1.8s ease-in-out infinite;
+}
+@keyframes btnLoading {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.btn-micro > .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.28);
+  transform: scale(0);
+  animation: rippleExpand 420ms ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleExpand {
+  to { transform: scale(1); opacity: 0; }
+}
+.btn-glow-listo:hover:not(:disabled) {
+  box-shadow: 0 6px 26px rgba(34,197,94,0.65);
 }
 `;
 
@@ -225,8 +274,8 @@ export default function KitchenPage() {
         <h1 style={{ fontSize: '1.5rem', margin: 0 }}>🍳 Cocina</h1>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text2)' }}>{orders.length} pendiente{orders.length !== 1 ? 's' : ''}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => void load()}>↻</button>
-          <button className="btn btn-ghost btn-sm" onClick={logout} style={{ fontSize: '0.75rem' }}>Salir</button>
+          <button className="btn btn-ghost btn-sm btn-micro" onMouseDown={addRipple} onClick={() => void load()}>↻</button>
+          <button className="btn btn-ghost btn-sm btn-micro" style={{ fontSize: '0.75rem' }} onMouseDown={addRipple} onClick={logout}>Salir</button>
         </div>
       </div>
 
@@ -343,7 +392,7 @@ export default function KitchenPage() {
 
                 {/* LISTO button */}
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary btn-micro btn-glow-listo"
                   style={{
                     width: '100%',
                     minHeight: 56,
@@ -356,6 +405,7 @@ export default function KitchenPage() {
                     color: '#fff',
                   }}
                   disabled={isBusy}
+                  onMouseDown={addRipple}
                   onClick={() => void markReady(order.id)}
                 >
                   {isBusy ? '...' : '✅ LISTO'}
