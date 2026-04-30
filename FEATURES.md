@@ -7,37 +7,70 @@
 - Re-upload comprobante desde tracking si pago rechazado
 - Normalización 04xx→584xx en todas las push subscriptions
 
+---
+
 ## FEATURE 1 — Validación automática pago móvil
 Watchdog 90s que lee SMS/notificación bancaria.
 Si coincide monto+referencia → confirma auto.
 Si no llega → alerta admin validación manual.
 Stack: app Android simple + webhook al backend.
 
+---
+
 ## FEATURE 2 — Saludo personalizado LLM
-Cliente recurrente ve saludo con su historial:
-"¡Hola Pedro! ¿Vienes por otra Yebram's?"
-LLM recibe: nombre, últimos 5 pedidos, ítem favorito.
+> ⚠️ **Consolidado en Feature 16** — ver Motor de Retención e Inteligencia de Cliente.
+> La lógica de saludo pasa a template strings sin LLM (CORE); el LLM queda en el tier PREMIUM.
+
+---
 
 ## FEATURE 3 — PWA offline-first
 Menú cacheado. Pedido en cola si sin internet.
 
+---
+
 ## FEATURE 4 — Programa de fidelidad
-Puntos por pedido → descuento automático.
+> ⚠️ **Consolidado en Feature 16** — ver Motor de Retención e Inteligencia de Cliente.
+> El club de puntos es parte del CORE de Feature 16.
+
+---
 
 ## FEATURE 5 — ETA dinámico
 Tiempo estimado según carga actual de cocina
 + zona de delivery + historial de tiempos reales.
 
+---
+
 ## FEATURE 6 — Analytics por cliente
-Frecuencia, ticket promedio, ítems favoritos.
+> ⚠️ **Consolidado en Feature 16** — ver Motor de Retención e Inteligencia de Cliente.
+> Perfil RFM, historial, ticket promedio e ítem favorito son el núcleo de Feature 16 CORE.
+
+---
+
+## FEATURE 7 — Multi-pedido por motorizado
+> ℹ️ Pendiente feedback del dueño.
+
+Un motorizado puede llevar varios pedidos simultáneos.
+El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"
+y genera un QR maestro. El motorizado escanea ese QR único
+y ve una lista secuencial de entregas ordenadas por cercanía:
+cliente 1 → cliente 2 → cliente 3.
+Cada entrega tiene su propio botón "Confirmar entrega" independiente.
+Al confirmar cada una, push al cliente correspondiente.
+El dashboard muestra el progreso de la ruta en tiempo real.
+
+---
 
 ## FEATURE 8 — Saludo personalizado en hero PWA
-Debajo del eslogan "TU MENÚ SUPER CRUJIENTE", si el cliente
-es recurrente (tiene pedidos previos en BD), mostrar en cursiva
-dorada un saludo generado por LLM con su nombre e ítem favorito.
-Ejemplo: "¿Otra vez por tu Yebram's+Papas, Pedro? 😏"
-LLM recibe: nombre, últimos 3 pedidos, ítem más pedido.
-Se carga via GET /api/public/greeting/:phone (con cache Redis 1h).
+> ⚠️ **Parcialmente consolidado en Feature 16 CORE** — la generación del saludo pasa a
+> template strings sin LLM. El endpoint `/api/public/greeting/:phone` se mantiene pero
+> devuelve texto generado localmente.
+
+Debajo del eslogan "TU MENÚ SUPER CRUJIENTE", si el cliente es recurrente muestra
+en cursiva dorada: "¿Otra vez por tu Yebram's+Papas, Pedro? 😏"
+Basado en: nombre + ítem más pedido + día habitual + último pedido.
+Cache Redis 1h.
+
+---
 
 ## FEATURE 9 — Ubicación GPS del cliente
 El cliente puede compartir su ubicación en Checkout.
@@ -45,6 +78,16 @@ Las coordenadas se guardan en la orden.
 El dashboard muestra link a Google Maps.
 El QR del motorizado incluye maps.google.com/?q={lat},{lng}
 para navegación directa.
+
+---
+
+## FEATURE 10 — Stories de promos con foto
+Carrusel de fotos entre Hero y tabs del menú en la PWA.
+Cada story puede vincularse a un ítem del menú con precio especial opcional.
+Publicación instantánea desde sección Promos del dashboard.
+Expiración configurable por días.
+
+---
 
 ## FEATURE 11 — Módulo de Caja
 
@@ -136,12 +179,139 @@ model CashRegisterShift {
 
 ---
 
-## FEATURE 7 — Multi-pedido por motorizado
-Un motorizado puede llevar varios pedidos simultáneos.
-El admin agrupa las órdenes OUT_FOR_DELIVERY en una "ruta"
-y genera un QR maestro. El motorizado escanea ese QR único
-y ve una lista secuencial de entregas ordenadas por cercanía:
-cliente 1 → cliente 2 → cliente 3.
-Cada entrega tiene su propio botón "Confirmar entrega" independiente.
-Al confirmar cada una, push al cliente correspondiente.
-El dashboard muestra el progreso de la ruta en tiempo real.
+## FEATURE 12 — (reservado)
+> ⚠️ **Consolidado en Feature 16** — ver Motor de Retención e Inteligencia de Cliente.
+
+---
+
+## FEATURE 16 — Motor de Retención e Inteligencia de Cliente
+> Engloba y reemplaza Features 2, 4, 6 y 12.
+
+Motor de retención sin LLM en el tier base — lógica matemática pura en servidor.
+Tier premium opcional con Claude para informes de alto valor.
+
+### CORE — Sin tokens (incluido en precio base)
+
+#### Perfil por cliente
+Calculado en cron job nocturno con queries SQL puras, sin ML:
+- Historial completo de pedidos
+- Ítem favorito (más pedido por frecuencia)
+- Día y hora habitual (moda del `createdAt`)
+- Ticket promedio (AVG totalUsd)
+- Días desde último pedido (recencia)
+
+#### Segmentación RFM automática
+Cron job nocturno clasifica a cada cliente en un segmento y actualiza `Customer.segment`:
+
+| Segmento | Criterio | Acción automática |
+|---|---|---|
+| **Campeón** | Alta frecuencia + alto gasto | Push de reconocimiento + acceso primicias |
+| **En riesgo (churn)** | Desviación de su patrón habitual | Push con oferta antes de perderlo |
+| **Nuevo** | Primer pedido en los últimos 7 días | Push de bienvenida personalizado |
+| **Nocturno/frecuencial** | Patrón horario detectado | Push predictivo en su horario habitual |
+
+Ejemplo patrón nocturno: Pedro pide todos los viernes a las 8 PM → jueves 7:30 PM recibe push
+"¿Esta noche hay antojo de Yebram's, Pedro? 🍗" — sin LLM, con data real.
+
+#### Reglas configurables por el dueño
+En dashboard Settings → sección "Retención":
+- "Si cliente sin pedido X días → enviar mensaje Y"
+- "Si cliente hace N pedidos → otorgar beneficio Z"
+- Reglas activadas/desactivadas con toggle
+
+#### Hero PWA — saludo con template strings inteligentes
+`GET /api/public/greeting/:phone` (cache Redis 1h) devuelve texto generado localmente:
+```
+"¿Otra vez por tu Yebram's+Papas, Pedro? 😏"   ← ítem favorito + nombre
+"¡Bienvenido de vuelta, Pedro! 🔥"               ← cliente en riesgo
+"¡Hola Pedro, qué bueno verte de nuevo! 👋"      ← primera vez / sin datos
+```
+Sin LLM. Template strings con datos reales de `Customer.favoriteItem`, `Customer.segment`.
+
+#### Club de puntos
+- $1 USD = X puntos (configurable por dueño en Settings)
+- Barra de progreso en PWA con puntos acumulados y próxima recompensa
+- Canje por ítems de alto margen configurados por el dueño
+- Puntos visibles en `ConfirmPage` y `OrderTrackingPage`
+
+#### WhatsApp Bridge
+Si la suscripción push está inactiva (cliente no dio permiso o desinstalado), el dashboard
+genera un link `wa.me` con mensaje personalizado por segmento para que el admin lo envíe
+manualmente o vía Evolution API.
+
+### PREMIUM — Con tokens (cobro adicional al restaurante)
+
+#### Informe mensual con Claude
+- Cron job mensual compila métricas anonimizadas → JSON estructurado → Claude API
+- Claude genera análisis narrativo en español:
+  - **Ingeniería de menú**: platos estrella (alto volumen + margen) vs platos muertos (bajo volumen + bajo margen) → recomendación de precio o baja
+  - **Horas/días flojos** → sugerencia de promos con costo marginal estimado
+  - **Upselling inteligente**: pares de ítems frecuentemente pedidos juntos → oportunidades de combos
+- Salida: PDF descargable en dashboard → sección "Informes IA"
+- Billing: el restaurante paga por token en este endpoint; el sistema puede limitarlo a 1/mes
+
+### Modelo de datos (adiciones a Prisma)
+```prisma
+// Campos nuevos en Customer:
+  segment         String?   // 'champion' | 'at_risk' | 'new' | 'nocturnal' | null
+  favoriteItem    String?   // nombre del ítem más pedido
+  avgTicketUsd    Decimal?
+  lastOrderAt     DateTime?
+  totalPoints     Int       @default(0)
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  orderId     String?
+  points      Int      // positivo = acumula, negativo = canje
+  reason      String   // 'order' | 'redemption' | 'bonus'
+  createdAt   DateTime @default(now())
+  customer    Customer @relation(fields: [customerId], references: [id])
+}
+
+model RetentionRule {
+  id          String   @id @default(cuid())
+  name        String
+  condition   Json     // { type: 'days_inactive', value: 7 }
+  action      Json     // { type: 'push', message: '...' }
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+```
+
+### Stack
+- Cron job: `src/workers/retention-worker.ts` (BullMQ, dispara 2 AM Venezuela)
+- Segmentación: `src/retention/rfm-segmenter.ts` (queries SQL, sin ML)
+- Reglas: `src/retention/rule-engine.ts`
+- Endpoint greeting: `GET /api/public/greeting/:phone` (cache Redis 1h)
+- Dashboard: pestaña "Clientes" enriquecida + sección "Retención" en Settings
+- Informe IA: `src/retention/ai-report.ts` → Claude claude-sonnet-4-6 con prompt caching
+
+---
+
+## FEATURE 17 — QR de Mesa
+
+Parámetro `?mesa=X` en la URL de la PWA activa modo local:
+- Oculta campo de dirección en Checkout (no aplica delivery)
+- Muestra número de mesa en la `ConfirmPage` y en la card del dashboard
+- El pedido se crea con `deliveryType: 'PICKUP'` y `tableNumber: X` en metadata
+- Puntos del club de fidelidad se acumulan automáticamente
+- El dashboard muestra la mesa en la card de la orden para que el mesero sepa a quién llevar
+- El menú QR se imprime una vez y el link nunca cambia: `https://yebramspedidos.up.railway.app/?mesa=3`
+
+**Implementación mínima**: agregar `tableNumber?: string` a `CreateOrderInput` y `Order`,
+leer `?mesa` en `MenuPage`, pasarlo en el body del pedido, mostrarlo en dashboard.
+
+---
+
+## FEATURE 18 — Módulo IA Premium
+> Extraído del tier PREMIUM de Feature 16 como servicio independiente vendible.
+
+Informe mensual descargable + ingeniería de menú + análisis de upselling.
+Servicio de pago adicional por restaurante — el dueño activa/desactiva desde Settings.
+Facturación por uso: el sistema registra tokens consumidos por restaurante y puede
+limitar a N informes/mes o cobrar por llamada.
+
+Candidato para cuando el sistema tenga más de 1 restaurante activo.
+
+---
