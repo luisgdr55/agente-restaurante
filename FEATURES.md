@@ -9,6 +9,43 @@
 
 ---
 
+## 🔔 POLÍTICA GLOBAL — Soft Prompt de Notificaciones Push
+> **Regla permanente — aplica a toda la PWA, presente y futura.**
+
+### ❌ Prohibido
+- Solicitar permiso de notificaciones automáticamente al cargar cualquier página
+- Mostrar el diálogo nativo del browser sin que el usuario lo haya pedido conscientemente
+- Pedir permiso en `MenuPage`, en `CheckoutPage` al cargar, o en cualquier pantalla de entrada
+
+### ✅ Estrategia de soft prompt — solo en momentos de alta motivación
+
+**Momento 1 — `ConfirmPage`** (justo después de confirmar el pedido):
+```
+Banner card:
+🔔 Activa las notificaciones para seguir tu pedido en tiempo real y recibir promos exclusivas
+[ Activar ] [ Ahora no ]
+```
+El botón "Activar" es el único que dispara `Notification.requestPermission()`.
+
+**Momento 2 — `OrderTrackingPage`** (si notificaciones están `denied` o `default`):
+```
+Banner sutil al pie de la página — no intrusivo, sin modal
+```
+
+### Comportamiento según estado del permiso
+| Estado (`Notification.permission`) | Acción |
+|---|---|
+| `granted` | No mostrar ningún banner — el usuario ya activó |
+| `default` | Mostrar soft prompt en los momentos indicados |
+| `denied` | NO mostrar el prompt nativo — mostrar alternativa: "📲 Te avisamos por WhatsApp" con link `wa.me` prellenado |
+
+### Impacto en código actual
+- `MenuPage.tsx`: **eliminar** el botón "🔔 Activar notificaciones" que aparece en desktop cuando `permission === 'default'` — viola esta política
+- `NotificationModal.tsx`: componente existente puede reutilizarse en `ConfirmPage` con el nuevo copy
+- Cualquier feature futura que use push (Feature 16, etc.) debe respetar estos puntos de activación
+
+---
+
 ## FEATURE 1 — Validación automática pago móvil
 Watchdog 90s que lee SMS/notificación bancaria.
 Si coincide monto+referencia → confirma auto.
@@ -233,6 +270,12 @@ Sin LLM. Template strings con datos reales de `Customer.favoriteItem`, `Customer
 - Barra de progreso en PWA con puntos acumulados y próxima recompensa
 - Canje por ítems de alto margen configurados por el dueño
 - Puntos visibles en `ConfirmPage` y `OrderTrackingPage`
+
+#### Push en retención — política obligatoria
+> Todos los push de retención (segmento, reglas, predictivos) deben respetar la
+> **Política Global de Soft Prompt** definida al inicio de este documento.
+> El permiso ya fue solicitado en `ConfirmPage`/`OrderTrackingPage`; nunca volver a pedirlo.
+> Si `Notification.permission === 'denied'` → usar WhatsApp Bridge automáticamente.
 
 #### WhatsApp Bridge
 Si la suscripción push está inactiva (cliente no dio permiso o desinstalado), el dashboard
