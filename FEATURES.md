@@ -272,10 +272,14 @@ Sin LLM. Template strings con datos reales de `Customer.favoriteItem`, `Customer
 - Puntos visibles en `ConfirmPage` y `OrderTrackingPage`
 
 #### Push en retención — política obligatoria
-> Todos los push de retención (segmento, reglas, predictivos) deben respetar la
-> **Política Global de Soft Prompt** definida al inicio de este documento.
-> El permiso ya fue solicitado en `ConfirmPage`/`OrderTrackingPage`; nunca volver a pedirlo.
-> Si `Notification.permission === 'denied'` → usar WhatsApp Bridge automáticamente.
+> **Soft prompt SOLO en dos momentos:**
+> 1. `ConfirmPage` — justo después de confirmar pedido (banner con copy motivacional)
+> 2. `OrderTrackingPage` — banner sutil al pie si permiso no concedido
+>
+> **NUNCA** al entrar a la app, al cargar `MenuPage`, ni de forma automática en ningún otro momento.
+> Si `Notification.permission === 'denied'` → no mostrar diálogo nativo; usar WhatsApp Bridge automáticamente.
+> Si `Notification.permission === 'granted'` → no mostrar ningún banner; el permiso ya existe.
+> Ver spec completo en **Política Global de Soft Prompt** al inicio de este documento.
 
 #### WhatsApp Bridge
 Si la suscripción push está inactiva (cliente no dio permiso o desinstalado), el dashboard
@@ -356,5 +360,185 @@ Facturación por uso: el sistema registra tokens consumidos por restaurante y pu
 limitar a N informes/mes o cobrar por llamada.
 
 Candidato para cuando el sistema tenga más de 1 restaurante activo.
+
+---
+
+## FEATURE 19 — Módulo Control de Crisis
+
+Panel en dashboard (pestaña o sección en Settings) con toggles de activación inmediata.
+**Sin nueva infraestructura** — todos los estados viven en la tabla `SystemConfig` existente.
+
+### Modos de crisis
+
+| Toggle | Clave Config | Efecto en PWA | Efecto en backend |
+|---|---|---|---|
+| **ALTA_DEMANDA** | `CRISIS_HIGH_DEMAND` | Banner ámbar sticky: "Alta demanda — puede haber demora" | Suma `CRISIS_ETA_EXTRA_MIN` al ETA de nuevos pedidos |
+| **SIN_LUZ / CONTINGENCIA** | `CRISIS_OUTAGE` | Banner rojo con mensaje personalizable `CRISIS_OUTAGE_MSG` | — |
+| **PAUSA_PEDIDOS** | `CRISIS_PAUSE_ORDERS` | Checkout deshabilitado + contador visible: "Reabrimos en X min" | `POST /api/public/orders` rechaza con mensaje amigable |
+| **ITEM_OCULTO** | Por ítem en `MenuItem.isAvailable` | Ítem desaparece del menú sin eliminarlo de BD | Validación en create order |
+
+### Comportamiento de PAUSA_PEDIDOS
+- `CRISIS_PAUSE_ORDERS` = `'true'` y `CRISIS_PAUSE_UNTIL` = ISO timestamp de reapertura
+- `POST /api/public/orders` valida: si activo y `now < CRISIS_PAUSE_UNTIL` → responde `409` con `{ message: "Pedidos en pausa hasta las HH:MM. ¡Volvemos enseguida! 🙏" }`
+- Contador en PWA hace countdown hasta `CRISIS_PAUSE_UNTIL`
+- Al expirar: checkout se reactiva solo (la PWA recarga config cada vez que llega a CheckoutPage)
+
+### Claves en SystemConfig
+```
+CRISIS_HIGH_DEMAND     'true' | 'false'
+CRISIS_ETA_EXTRA_MIN   '15'              (minutos extra al ETA)
+CRISIS_OUTAGE          'true' | 'false'
+CRISIS_OUTAGE_MSG      'Estamos sin luz, volvemos en 1 hora 🕯️'
+CRISIS_PAUSE_ORDERS    'true' | 'false'
+CRISIS_PAUSE_UNTIL     '2026-04-28T22:00:00Z'  (ISO — vacío si inactivo)
+```
+
+### Stack
+- Backend: validación en `POST /api/public/orders` + nuevo endpoint `GET /api/public/config` ya expone estas claves
+- Frontend PWA: `MenuPage`/`CheckoutPage` leen las claves de `PublicConfig`; banners condicionales
+- Dashboard: panel "Control de Crisis" — 4 toggles con labels claros, input para mensaje y duración
+
+---
+
+## FEATURE 20 — El Plato de Siempre
+
+Banner en hero de la PWA debajo del saludo de bienvenida.
+
+### Lógica
+- Query SQL: ítem más pedido por teléfono del cliente (ordenado por frecuencia)
+- Solo aparece si el cliente tiene **2+ pedidos previos**
+- Cache Redis 1h por teléfono (`usual:phone:584XXXXXXXXX`) — sin costo de BD en cada carga
+
+### UX
+```
+┌────────────────────────────────────────────┐
+│  ¿La misma de siempre, Pedro?              │
+│  2× Hamburguesa Yebram's + Papas           │
+│  [ ➕ Agregar al carrito ]                  │
+└────────────────────────────────────────────┘
+```
+- Botón "Agregar al carrito" → agrega directamente con la cantidad habitual (moda del historial), sin abrir modal
+- Si el cliente modifica la cantidad habitual → el sistema lo aprende en el siguiente ciclo de cache
+
+### Endpoint
+`GET /api/public/usual/:phone` → `{ itemId, name, imageUrl, priceUsd, usualQty }` o `null`
+
+### Stack
+- Backend: `src/api/public.routes.ts` + cache Redis
+- PWA `MenuPage.tsx`: fetch al cargar si hay `yebrams_customer_phone` en localStorage
+
+---
+
+## FEATURE 21 — Cross-selling en carrito
+
+Carrusel "¿Le agregas...?" visible justo antes del checkout, basado en los ítems del carrito activo.
+
+### Lógica
+- Tabla `product_suggestions(product_id, suggested_id, priority)` — reglas manuales configuradas por el dueño
+- Sin LLM, sin ML: puras reglas explícitas
+- Ejemplo: hamburguesa → sugiere refresco y papas; pizza → sugiere ensalada
+
+### UX en CartDrawer / CheckoutPage
+```
+¿Le agregas algo más? 🤤
+[ 🥤 Refresco $1.50 ] [ 🍟 Papas $2.00 ] [ 🧁 Postre $3.00 ]
+  (scroll horizontal)
+```
+- Toca el chip → agrega al carrito sin salir de la vista
+- Solo muestra sugerencias no presentes ya en el carrito
+
+### Dashboard — configuración
+Sección "Cross-selling" en pestaña Menú:
+- Tabla editable: "Para [Ítem A] → sugerir [Ítem B] con prioridad [1-5]"
+- Drag & drop de prioridad
+
+### Modelo de datos (Prisma)
+```prisma
+model ProductSuggestion {
+  id          String   @id @default(cuid())
+  productId   String
+  suggestedId String
+  priority    Int      @default(1)
+  product     MenuItem @relation("source", fields: [productId], references: [id])
+  suggested   MenuItem @relation("target", fields: [suggestedId], references: [id])
+}
+```
+
+### Endpoints
+- `GET /api/public/suggestions?items=id1,id2` → lista de sugerencias para los ítems del carrito
+- `GET/POST/DELETE /api/suggestions` (auth dashboard) — CRUD de reglas
+
+---
+
+## FEATURE 22 — Badge VIP en cocina y dashboard
+
+Si el cliente de un pedido tiene `Customer.segment === 'champion'` (Feature 16 RFM):
+- `KitchenPage`: estrella ⭐ dorada junto al nombre del cliente en la card de cocina
+- `OrderCard` dashboard: badge ⭐ VIP junto al nombre
+- Sin costo adicional — dato ya calculado por el cron de Feature 16
+
+### Implementación mínima
+- `Order` debe exponer `customer.segment` en los endpoints de dashboard y cocina (ya incluido en `include: { customer: true }`)
+- Condicional `{order.customer.segment === 'champion' && <span>⭐</span>}` en ambos componentes
+
+---
+
+## FEATURE 23 — Validación cruzada cliente
+
+Botón en `OrderTrackingPage` cuando el pedido está en `OUT_FOR_DELIVERY`:
+```
+[ ✅ Ya recibí mi pedido ]
+```
+
+### Comportamiento
+- Al confirmar (modal de confirmación primero): llama `POST /api/public/orders/:id/delivered`
+- Endpoint existente — ya cierra el pedido y envía notificaciones
+- Libera puntos de fidelidad (Feature 16) al cliente al cerrar
+- Si el motorizado ya confirmó antes → endpoint responde con el estado actual (idempotente)
+- Si el cliente confirma antes → el botón del motorizado en `DriverPage` queda inactivo con mensaje "El cliente ya confirmó la entrega ✅"
+
+### Regla: el primero que confirme cierra el pedido
+Ambos botones (cliente y motorizado) llaman al mismo endpoint. La lógica de idempotencia ya existe — si la orden ya está `DELIVERED`, el endpoint lo ignora sin error.
+
+---
+
+## FEATURE 24 — Cron seguridad pedidos zombies
+
+Previene pedidos atascados indefinidamente en `OUT_FOR_DELIVERY`.
+
+### Comportamiento
+- `node-cron` cada 30 minutos (o BullMQ repeat job)
+- Busca pedidos en `OUT_FOR_DELIVERY` con `updatedAt < now - 3 horas`
+- Los fuerza a `DELIVERED` con `cancelReason: '⚠️ Auto-cerrado por timeout'`
+- Registra incidencia en log estructurado (`logger.warn`) con `orderId`, `driverPhone`, tiempo transcurrido
+- El dashboard muestra el `cancelReason` en la card de pedidos históricos
+
+### Infraestructura
+- Sin nueva tabla — usa campos existentes `status`, `cancelReason`, `deliveredAt`
+- Worker: agregar al `session-cleanup.ts` existente o crear `src/workers/zombie-cleanup.ts`
+- Endpoint opcional: `GET /api/orders/incidents` para que el admin vea el log de auto-cierres
+
+---
+
+## FEATURE 25 — Optimización carga PWA
+
+Target: **carga inicial < 3 segundos en 4G venezolano** (~5 Mbps).
+
+### WebP automático al subir imágenes
+- Al subir imagen desde dashboard (ítems del menú, stories): conversión automática a WebP en el backend
+- Stack: `sharp` en Node.js (`npm install sharp`) — sin dependencias del OS
+- Calidad: 80% WebP ≈ 60% del tamaño JPEG/PNG sin pérdida visual perceptible
+- Dimensiones: resize a max 800×600px (suficiente para cards del menú en móvil)
+- Almacenamiento: URL resultante reemplaza la original en `MenuItem.imageUrl`
+
+### Lazy loading en grid de ítems
+- `<img loading="lazy">` en todas las cards del menú — ya soportado nativamente en Chrome/Safari/Firefox
+- Intersection Observer como fallback para browsers viejos (opcional)
+- Solo carga imágenes visibles en el viewport inicial — las demás esperan al hacer scroll
+
+### Otras mejoras
+- `rel="preload"` para la imagen hero del restaurante (primera imagen visible)
+- Skeleton loaders en el grid mientras cargan las imágenes (ya implementado parcialmente)
+- Audit Lighthouse en cada deploy para detectar regresiones
 
 ---
