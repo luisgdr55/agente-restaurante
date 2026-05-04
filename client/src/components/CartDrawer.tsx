@@ -6,8 +6,6 @@ interface CartDrawerProps {
   deliveryFeeUsd: number
   rate: number
   closing?: boolean
-  isPaused?: boolean
-  pauseCountdown?: string | null
   activeMenuIds?: Set<string>
   onAdd: (item: Omit<CartItem, 'quantity'>) => void
   onRemove: (id: string) => void
@@ -39,7 +37,7 @@ function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, isPaused, pauseCountdown, activeMenuIds, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, activeMenuIds, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
   const grandTotal = total + deliveryFeeUsd
 
   const unavailableItems = activeMenuIds
@@ -244,22 +242,7 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing
               </div>
             </div>
 
-            {isPaused ? (
-              <div style={{
-                width: '100%', padding: '0.85rem',
-                background: 'rgba(99,102,241,0.12)',
-                border: '1px solid rgba(99,102,241,0.35)',
-                borderRadius: 12, textAlign: 'center',
-                color: '#a5b4fc', fontWeight: 700, fontSize: '0.9rem',
-              }}>
-                ⏸️ Pedidos en pausa
-                {pauseCountdown && (
-                  <span style={{ display: 'block', fontSize: '1.3rem', fontWeight: 900, marginTop: '0.2rem', color: '#c7d2fe' }}>
-                    Reabrimos en {pauseCountdown}
-                  </span>
-                )}
-              </div>
-            ) : allUnavailable ? (
+            {allUnavailable ? (
               <div style={{
                 width: '100%', padding: '0.85rem',
                 background: 'rgba(239,68,68,0.08)',

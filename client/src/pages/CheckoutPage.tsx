@@ -170,6 +170,7 @@ export default function CheckoutPage() {
         state: {
           orderNumber: result.orderNumber,
           orderId: result.orderId,
+          queued: result.queued ?? false,
           adminPhone: config?.ADMIN_PHONE ?? '',
           customerName: name.trim(),
           phone: phone.trim(),

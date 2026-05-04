@@ -1606,24 +1606,18 @@ export async function dashboardRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'address is required for delivery' });
       }
 
-      // Crisis: check if orders are paused
-      if ((await getConfig('IS_ORDERS_PAUSED')) === 'true') {
-        const pauseUntil = await getConfig('ORDERS_PAUSE_UNTIL');
-        if (!pauseUntil || new Date(pauseUntil) > new Date()) {
-          return reply.code(503).send({
-            error: 'ORDERS_PAUSED',
-            message: 'Pedidos pausados temporalmente. ¡Volvemos enseguida! 🙏',
-            resumesAt: pauseUntil ?? null,
-          });
-        }
-        // Pause expired — auto-clear
-        await prisma.systemConfig.upsert({
-          where: { key: 'IS_ORDERS_PAUSED' },
-          update: { value: 'false' },
-          create: { key: 'IS_ORDERS_PAUSED', value: 'false' },
-        });
+      // Queue mode: IS_ORDERS_PAUSED or IS_HIGH_DEMAND — never block, just flag
+      const [isPaused, isHighDemand, pauseUntilRaw] = await Promise.all([
+        getConfig('IS_ORDERS_PAUSED'),
+        getConfig('IS_HIGH_DEMAND'),
+        getConfig('ORDERS_PAUSE_UNTIL'),
+      ]);
+      const pauseExpired = isPaused === 'true' && !!pauseUntilRaw && new Date(pauseUntilRaw) <= new Date();
+      if (pauseExpired) {
+        await prisma.systemConfig.upsert({ where: { key: 'IS_ORDERS_PAUSED' }, update: { value: 'false' }, create: { key: 'IS_ORDERS_PAUSED', value: 'false' } });
         emitConfigUpdated({ key: 'IS_ORDERS_PAUSED', value: 'false' });
       }
+      const queued = !pauseExpired && (isPaused === 'true' || isHighDemand === 'true');
 
       const normalizedPhone = normalizeDriverPhone(phone.trim());
 
@@ -1704,7 +1698,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         }).catch(() => { /* non-critical */ });
       }
 
-      return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber });
+      return reply.code(201).send({ orderId: order.id, orderNumber: order.orderNumber, queued });
     } catch (err) {
       console.error('[POST /api/public/orders] Unhandled error:', err);
       return reply.code(500).send({ error: 'Internal server error', detail: String(err) });

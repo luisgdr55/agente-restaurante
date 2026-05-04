@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { statsApi, ordersApi } from '../api/api';
+import { statsApi, ordersApi, configApi } from '../api/api';
 import { useStore } from '../store/useStore';
 import { getSocket } from '../socket/socket';
 import StatsCard from '../components/StatsCard';
@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const setOrders   = useStore((s) => s.setOrders);
   const upsertOrder = useStore((s) => s.upsertOrder);
   const [connected, setConnected] = useState(false);
+  const [isQueueMode, setIsQueueMode] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -67,6 +68,12 @@ export default function DashboardPage() {
   useEffect(() => {
     void refreshRef.current();
     const id = setInterval(() => void refreshRef.current(), POLL_INTERVAL);
+
+    // Load initial queue mode
+    configApi.getAll().then(entries => {
+      const cfg = Object.fromEntries(entries.map(e => [e.key, e.value]));
+      setIsQueueMode(cfg['IS_HIGH_DEMAND'] === 'true' || cfg['IS_ORDERS_PAUSED'] === 'true');
+    }).catch(() => undefined);
 
     const socket = getSocket();
 
@@ -90,19 +97,34 @@ export default function DashboardPage() {
       setStats(stats);
     };
 
-    socket.on('connect',       onConnect);
-    socket.on('disconnect',    onDisconnect);
-    socket.on('order:new',     onOrderNew);
-    socket.on('order:updated', onOrderUpdated);
-    socket.on('stats:updated', onStatsUpdated);
+    const onConfigUpdated = ({ key, value }: { key: string; value: string }) => {
+      if (key === 'IS_HIGH_DEMAND' || key === 'IS_ORDERS_PAUSED') {
+        if (value === 'true') {
+          setIsQueueMode(true);
+        } else {
+          configApi.getAll().then(entries => {
+            const cfg = Object.fromEntries(entries.map(e => [e.key, e.value]));
+            setIsQueueMode(cfg['IS_HIGH_DEMAND'] === 'true' || cfg['IS_ORDERS_PAUSED'] === 'true');
+          }).catch(() => undefined);
+        }
+      }
+    };
+
+    socket.on('connect',        onConnect);
+    socket.on('disconnect',     onDisconnect);
+    socket.on('order:new',      onOrderNew);
+    socket.on('order:updated',  onOrderUpdated);
+    socket.on('stats:updated',  onStatsUpdated);
+    socket.on('config:updated', onConfigUpdated);
 
     return () => {
       clearInterval(id);
-      socket.off('connect',       onConnect);
-      socket.off('disconnect',    onDisconnect);
-      socket.off('order:new',     onOrderNew);
-      socket.off('order:updated', onOrderUpdated);
-      socket.off('stats:updated', onStatsUpdated);
+      socket.off('connect',        onConnect);
+      socket.off('disconnect',     onDisconnect);
+      socket.off('order:new',      onOrderNew);
+      socket.off('order:updated',  onOrderUpdated);
+      socket.off('stats:updated',  onStatsUpdated);
+      socket.off('config:updated', onConfigUpdated);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upsertOrder, setStats]);
@@ -149,7 +171,7 @@ export default function DashboardPage() {
             ⚠️ Requieren acción ({urgent.length})
           </h3>
           <div className="card-grid" style={{ marginBottom: '1.5rem' }}>
-            {urgent.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} />)}
+            {urgent.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} isQueueMode={isQueueMode} />)}
           </div>
         </>
       )}
@@ -158,7 +180,7 @@ export default function DashboardPage() {
         <>
           <h3 style={{ marginBottom: '0.75rem' }}>🍳 En cocina / Listos ({inKitchen.length})</h3>
           <div className="card-grid" style={{ marginBottom: '1.5rem' }}>
-            {inKitchen.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} />)}
+            {inKitchen.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} isQueueMode={isQueueMode} />)}
           </div>
         </>
       )}
@@ -169,7 +191,7 @@ export default function DashboardPage() {
             ⏳ Esperando pago ({pending.length})
           </h3>
           <div className="card-grid" style={{ marginBottom: '1.5rem' }}>
-            {pending.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} />)}
+            {pending.map((o) => <OrderCard key={o.id} order={o} onRefresh={refresh} isQueueMode={isQueueMode} />)}
           </div>
         </>
       )}

@@ -119,6 +119,7 @@ export interface WebOrderBody {
 export interface WebOrderResponse {
   orderId: string
   orderNumber: number
+  queued?: boolean
 }
 
 // ── API calls ────────────────────────────────────────────────────────────────

@@ -4,6 +4,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { Order, Driver } from '../api/api';
 import { ordersApi, driversApi } from '../api/api';
 
+interface OrderCardProps { order: Order; onRefresh: () => void; isQueueMode?: boolean; }
+
 const PWA_URL = import.meta.env.VITE_PWA_URL ?? 'https://yebramspedidos.up.railway.app';
 
 // ── Micro-interaction CSS (injected once per app) ─────────────────────────────
@@ -106,12 +108,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 const TERMINAL = ['DELIVERED', 'CANCELLED'];
 
-interface Props {
-  order: Order;
-  onRefresh: () => void;
-}
-
-export default function OrderCard({ order, onRefresh }: Props) {
+export default function OrderCard({ order, onRefresh, isQueueMode }: OrderCardProps) {
   const [loading, setLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -262,9 +259,20 @@ export default function OrderCard({ order, onRefresh }: Props) {
 
       {/* Header: order number + status badge */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-        <span style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>
-          #{orderNum}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>
+            #{orderNum}
+          </span>
+          {isQueueMode && (
+            <span style={{
+              fontSize: '0.72rem', fontWeight: 800,
+              padding: '0.2rem 0.55rem', borderRadius: 999,
+              background: 'rgba(245,158,11,0.15)', color: '#fbbf24',
+              border: '1px solid rgba(245,158,11,0.4)',
+              letterSpacing: '0.05em',
+            }}>EN COLA</span>
+          )}
+        </div>
         <span style={{
           fontSize: '0.82rem', fontWeight: 700,
           padding: '0.35rem 0.85rem',

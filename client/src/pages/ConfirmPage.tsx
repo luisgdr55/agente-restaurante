@@ -7,6 +7,7 @@ import { saveActiveOrder } from './OrderTrackingPage'
 interface ConfirmState {
   orderNumber: number
   orderId: string
+  queued?: boolean
   adminPhone: string
   customerName: string
   phone: string
@@ -58,7 +59,7 @@ export default function ConfirmPage() {
     return null
   }
 
-  const { orderNumber, orderId, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = confirmState
+  const { orderNumber, orderId, queued, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = confirmState
 
   // Persist active order for auto-redirect on next app open
   useEffect(() => {
@@ -147,6 +148,28 @@ export default function ConfirmPage() {
             <span style={{ color: 'var(--accent)' }}>${total.toFixed(2)} | Bs {totalBs}</span>
           </div>
         </div>
+
+        {/* ── Cola de espera ── */}
+        {queued && (
+          <div style={{
+            background: 'rgba(245,158,11,0.1)',
+            border: '2px solid rgba(245,158,11,0.45)',
+            borderRadius: 14, padding: '1rem 1.25rem',
+            marginBottom: '1rem',
+            display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+            textAlign: 'left',
+          }}>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⏳</span>
+            <div>
+              <p style={{ fontWeight: 700, color: '#fbbf24', marginBottom: '0.25rem', fontSize: '0.95rem' }}>
+                Alta demanda — tu pedido está en cola
+              </p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                Lo procesaremos en el orden en que llegó. Te notificaremos cuando sea confirmado. ¡Gracias por tu paciencia! 🙏
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Estado + instrucción ── */}
         <div style={{

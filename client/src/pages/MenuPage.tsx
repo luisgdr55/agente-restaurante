@@ -56,10 +56,6 @@ const MENU_STYLES = `
   0%, 100% { box-shadow: 0 2px 12px rgba(239,68,68,0.3); }
   50%       { box-shadow: 0 2px 28px rgba(239,68,68,0.85); }
 }
-@keyframes pulseIndigo {
-  0%, 100% { box-shadow: 0 2px 12px rgba(99,102,241,0.3); }
-  50%       { box-shadow: 0 2px 28px rgba(99,102,241,0.85); }
-}
 `
 
 function ItemPlaceholder() {
@@ -91,7 +87,6 @@ export default function MenuPage() {
   const [heroHovered, setHeroHovered] = useState(false)
   const [addingId, setAddingId] = useState<string | null>(null)
   const [countBouncing, setCountBouncing] = useState(false)
-  const [pauseCountdown, setPauseCountdown] = useState<string | null>(null)
   const [unavailableWarnings, setUnavailableWarnings] = useState<string[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(0)
@@ -145,28 +140,6 @@ export default function MenuPage() {
     return () => { socket.disconnect() }
   }, [items])
 
-  // Pause countdown
-  useEffect(() => {
-    if (config?.IS_ORDERS_PAUSED !== 'true' || !config.ORDERS_PAUSE_UNTIL) {
-      setPauseCountdown(null)
-      return
-    }
-    const update = () => {
-      const ms = new Date(config.ORDERS_PAUSE_UNTIL!).getTime() - Date.now()
-      if (ms <= 0) {
-        setPauseCountdown(null)
-        setConfig(prev => prev ? { ...prev, IS_ORDERS_PAUSED: 'false' } as PublicConfig : prev)
-        return
-      }
-      const m = Math.floor(ms / 60000)
-      const s = Math.floor((ms % 60000) / 1000)
-      setPauseCountdown(`${m}:${s.toString().padStart(2, '0')}`)
-    }
-    update()
-    const id = setInterval(update, 1000)
-    return () => clearInterval(id)
-  }, [config?.IS_ORDERS_PAUSED, config?.ORDERS_PAUSE_UNTIL])
-
   const handleCartClose = () => {
     setCartClosing(true)
     setTimeout(() => {
@@ -206,11 +179,8 @@ export default function MenuPage() {
     }
   }
 
-  const isPaused = config?.IS_ORDERS_PAUSED === 'true'
-
   const handleCheckout = () => {
     if (items.length === 0) return
-    if (isPaused) return
     sessionStorage.setItem('yebrams_checkout_cart', JSON.stringify(items))
     sessionStorage.setItem('yebrams_checkout_config', JSON.stringify(config))
     handleCartClose()
@@ -398,9 +368,9 @@ export default function MenuPage() {
       )}
 
       {/* ── Crisis banners ── */}
-      {(config?.IS_HIGH_DEMAND === 'true' || config?.IS_POWER_OUTAGE === 'true' || isPaused) && (
+      {(config?.IS_HIGH_DEMAND === 'true' || config?.IS_ORDERS_PAUSED === 'true' || config?.IS_POWER_OUTAGE === 'true') && (
         <div style={{ position: 'sticky', top: 57, zIndex: 80 }}>
-          {config?.IS_HIGH_DEMAND === 'true' && (
+          {(config?.IS_HIGH_DEMAND === 'true' || config?.IS_ORDERS_PAUSED === 'true') && (
             <div style={{
               background: '#78350f',
               borderBottom: '2px solid #f59e0b',
@@ -409,7 +379,7 @@ export default function MenuPage() {
               fontSize: '1rem', fontWeight: 700, color: '#fde68a',
               animation: 'pulseAmbar 1.5s ease-in-out infinite',
             }}>
-              <span style={{ fontSize: '1.3rem' }}>⏳</span>{' '}Alta demanda — los tiempos de espera son mayores al normal
+              <span style={{ fontSize: '1.3rem' }}>⏳</span>{' '}Alta demanda — tu pedido entrará en cola, lo procesamos en orden de llegada
             </div>
           )}
           {config?.IS_POWER_OUTAGE === 'true' && (
@@ -422,19 +392,6 @@ export default function MenuPage() {
               animation: 'pulseRed 1.5s ease-in-out infinite',
             }}>
               <span style={{ fontSize: '1.3rem' }}>⚡</span>{' '}{config.OUTAGE_MESSAGE || 'Estamos con fallas eléctricas, procesando pedidos con cautela'}
-            </div>
-          )}
-          {isPaused && (
-            <div style={{
-              background: '#1e1b4b',
-              borderBottom: '2px solid #6366f1',
-              padding: '0.55rem 1rem',
-              textAlign: 'center',
-              fontSize: '1rem', fontWeight: 700, color: '#c7d2fe',
-              animation: 'pulseIndigo 1.5s ease-in-out infinite',
-            }}>
-              <span style={{ fontSize: '1.3rem' }}>⏸️</span>{' '}Pedidos pausados
-              {pauseCountdown && ` — reabrimos en ${pauseCountdown}`}
             </div>
           )}
         </div>
@@ -747,8 +704,6 @@ export default function MenuPage() {
           onClose={handleCartClose}
           onCheckout={handleCheckout}
           closing={cartClosing}
-          isPaused={isPaused}
-          pauseCountdown={pauseCountdown}
           activeMenuIds={activeMenuIds}
         />
       )}
