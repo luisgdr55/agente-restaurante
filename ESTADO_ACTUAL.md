@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-04-27
+Última actualización: 2026-05-04
 
 ## Infraestructura deployada
 | Servicio | URL | Estado |
@@ -471,6 +471,39 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
 - Export inteligente: carga plantilla `.xlsx` existente del restaurante, mapea y rellena celdas específicas con SheetJS, descarga listo
 - Dos cajeras/turnos por día (AM/PM)
 - Modelo de datos `CashRegisterShift` + endpoints `/api/cash/shifts/...`
+
+## Sesión 2026-05-04 — Feature 19 (Control de Crisis) + Menú en tiempo real ✅
+
+### ✅ Feature 19 — Módulo Control de Crisis
+
+- **Dashboard SettingsPage**: 4 controles en panel "Control de Crisis":
+  - Toggle ⏳ Alta demanda (IS_HIGH_DEMAND) — banner ámbar en PWA
+  - Toggle ⚡ Sin luz (IS_POWER_OUTAGE) + campo OUTAGE_MESSAGE personalizable — banner rojo
+  - Toggle/timer ⏸️ Pausar pedidos (IS_ORDERS_PAUSED) con minutos configurables y auto-expiración
+- **6 claves nuevas en `SystemConfigMap`**: `IS_HIGH_DEMAND`, `IS_POWER_OUTAGE`, `OUTAGE_MESSAGE`, `IS_ORDERS_PAUSED`, `ORDERS_PAUSE_MINUTES`, `ORDERS_PAUSE_UNTIL`
+- **Banners sticky en PWA** (`MenuPage.tsx`):
+  - Ámbar (IS_HIGH_DEMAND o IS_ORDERS_PAUSED fusionados): "Alta demanda — tu pedido entrará en cola" con animación `pulseAmbar 1.5s`
+  - Rojo (IS_POWER_OUTAGE): mensaje configurable con animación `pulseRed 1.5s`
+  - Banners actualizan en tiempo real vía socket `config:updated` sin F5
+- **Modo lista de espera** (Cambio 3 — estrategia final):
+  - `POST /api/public/orders` **nunca devuelve 503** — acepta el pedido siempre
+  - Si IS_ORDERS_PAUSED o IS_HIGH_DEMAND activos: devuelve `queued: true` en la respuesta
+  - `ConfirmPage`: card ámbar "⏳ Alta demanda — tu pedido está en cola" visible cuando `queued === true`
+  - `CartDrawer`: siempre muestra "Ir a pagar →" (sin bloqueo de checkout)
+- **Dashboard OrderCard**: badge "EN COLA" ámbar junto al número de pedido cuando `isQueueMode` activo
+- **DashboardPage**: carga `isQueueMode` al montar vía `configApi.getAll()` + escucha `config:updated` en tiempo real; propaga prop a los 3 grupos de OrderCard
+
+### ✅ Menú en tiempo real
+
+- **Cache-Control `no-store`** en `GET /api/public/menu`: elimina cache HTTP de 60s que impedía ver ítems habilitados/deshabilitados sin F5
+- **Socket `menu:updated`**: `PATCH /api/menu/items/:id` emite `emitMenuUpdated(itemId)` cuando cambia `isAvailable`
+- **`MenuPage.tsx`** escucha `menu:updated` → re-fetcha menú completo → recalcula `activeMenuIds` sin recargar página
+- **Banner naranja sticky** en `MenuPage`: aparece si un ítem del carrito se agota mientras el cliente navega; descartable con ×
+- **`CartDrawer` validación de carrito**:
+  - Recibe `activeMenuIds: Set<string>` → calcula `unavailableItems` en cada render
+  - Si algún ítem agotado: botón "Eliminar" inline por ítem con banner naranja por ítem
+  - Si todos los ítems agotados: bloqueo rojo "Tu pedido no puede procesarse"
+  - Si ninguno agotado: botón normal "Ir a pagar →"
 
 ## Pendientes priorizados (feedback cliente 2026-04-28)
 
