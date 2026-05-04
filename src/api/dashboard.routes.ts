@@ -1548,7 +1548,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       },
       orderBy: { sortOrder: 'asc' },
     });
-    reply.header('Cache-Control', 'public, max-age=60');
+    reply.header('Cache-Control', 'no-store');
     return categories;
   });
 
