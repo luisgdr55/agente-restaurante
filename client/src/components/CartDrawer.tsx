@@ -8,6 +8,7 @@ interface CartDrawerProps {
   closing?: boolean
   isPaused?: boolean
   pauseCountdown?: string | null
+  activeMenuIds?: Set<string>
   onAdd: (item: Omit<CartItem, 'quantity'>) => void
   onRemove: (id: string) => void
   onClear: () => void
@@ -38,8 +39,13 @@ function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, isPaused, pauseCountdown, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, isPaused, pauseCountdown, activeMenuIds, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
   const grandTotal = total + deliveryFeeUsd
+
+  const unavailableItems = activeMenuIds
+    ? items.filter(i => !activeMenuIds.has(i.id))
+    : []
+  const allUnavailable = unavailableItems.length === items.length && items.length > 0
 
   return (
     <>
@@ -252,6 +258,43 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing
                     Reabrimos en {pauseCountdown}
                   </span>
                 )}
+              </div>
+            ) : allUnavailable ? (
+              <div style={{
+                width: '100%', padding: '0.85rem',
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 12, textAlign: 'center',
+                color: '#fca5a5', fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.5,
+              }}>
+                😔 Tu pedido no puede procesarse, los productos seleccionados ya no están disponibles
+              </div>
+            ) : unavailableItems.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {unavailableItems.map(item => (
+                  <div key={item.id} style={{
+                    padding: '0.7rem 0.9rem',
+                    background: 'rgba(249,115,22,0.08)',
+                    border: '1px solid rgba(249,115,22,0.3)',
+                    borderRadius: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+                  }}>
+                    <span style={{ color: '#fed7aa', fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.4 }}>
+                      😕 <strong>{item.name}</strong> se agotó — retíralo para continuar
+                    </span>
+                    <button
+                      onClick={() => onRemove(item.id)}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        background: 'rgba(249,115,22,0.2)', color: '#fb923c',
+                        borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                        border: '1px solid rgba(249,115,22,0.4)', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
               </div>
             ) : (
               <button

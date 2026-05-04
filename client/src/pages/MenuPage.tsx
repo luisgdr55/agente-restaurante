@@ -221,6 +221,7 @@ export default function MenuPage() {
   const rate = parseFloat(config?.USD_TO_BS_RATE ?? '36.50')
 
   const activeItems = menu.find((c) => c.id === activeCategory)?.items ?? []
+  const activeMenuIds = new Set(menu.flatMap(c => c.items).map(i => i.id))
 
   if (loading) {
     return (
@@ -748,6 +749,7 @@ export default function MenuPage() {
           closing={cartClosing}
           isPaused={isPaused}
           pauseCountdown={pauseCountdown}
+          activeMenuIds={activeMenuIds}
         />
       )}
     </Layout>
