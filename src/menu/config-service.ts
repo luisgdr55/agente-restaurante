@@ -35,6 +35,13 @@ export interface SystemConfigMap {
   SCHEDULE_CLOSE_TIME: string; // "HH:MM" en hora Venezuela (UTC-4)
   SCHEDULE_DAYS: string;       // JSON array de días activos, ej: "[1,2,3,4,5,6]" (0=Dom, 6=Sáb)
   PROMO_DAYS: string;
+  // Crisis control
+  IS_HIGH_DEMAND: string;
+  IS_POWER_OUTAGE: string;
+  OUTAGE_MESSAGE: string;
+  IS_ORDERS_PAUSED: string;
+  ORDERS_PAUSE_MINUTES: string;
+  ORDERS_PAUSE_UNTIL: string;
 }
 
 export type ConfigKey = keyof SystemConfigMap;
