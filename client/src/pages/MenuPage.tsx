@@ -92,6 +92,7 @@ export default function MenuPage() {
   const [addingId, setAddingId] = useState<string | null>(null)
   const [countBouncing, setCountBouncing] = useState(false)
   const [pauseCountdown, setPauseCountdown] = useState<string | null>(null)
+  const [unavailableWarnings, setUnavailableWarnings] = useState<string[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(0)
   const { items, add, remove, clear, total, count } = useCart()
@@ -122,15 +123,27 @@ export default function MenuPage() {
     prevCountRef.current = count
   }, [count])
 
-  // Real-time config updates (crisis banners, pause state)
+  // Real-time config + menu updates
   useEffect(() => {
     const BACKEND = import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'
     const socket = io(BACKEND, { path: '/ws', transports: ['websocket'], reconnection: true })
     socket.on('config:updated', ({ key, value }: { key: string; value: string }) => {
       setConfig(prev => prev ? { ...prev, [key]: value } as PublicConfig : prev)
     })
+    socket.on('menu:updated', () => {
+      publicApi.getMenu().then(menuData => {
+        setMenu(menuData)
+        const allIds = new Set(menuData.flatMap(c => c.items).map(mi => mi.id))
+        setUnavailableWarnings(prev => {
+          const newWarnings = items
+            .filter(ci => !allIds.has(ci.id))
+            .map(ci => ci.name)
+          return [...new Set([...prev, ...newWarnings])]
+        })
+      }).catch(() => undefined)
+    })
     return () => { socket.disconnect() }
-  }, [])
+  }, [items])
 
   // Pause countdown
   useEffect(() => {
@@ -362,6 +375,26 @@ export default function MenuPage() {
           <div style={{ width: 1, height: 28, background: '#F5C518' }} />
         </div>
       </div>
+
+      {/* ── Unavailable items warning ── */}
+      {unavailableWarnings.length > 0 && (
+        <div style={{
+          position: 'sticky', top: 57, zIndex: 85,
+          background: '#422006', borderBottom: '2px solid #f97316',
+          padding: '0.55rem 1rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontSize: '0.92rem', fontWeight: 700, color: '#fed7aa',
+        }}>
+          <span>
+            <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+            {' '}{unavailableWarnings.join(', ')} ya no {unavailableWarnings.length === 1 ? 'está disponible' : 'están disponibles'} — revisa tu carrito
+          </span>
+          <button
+            onClick={() => setUnavailableWarnings([])}
+            style={{ marginLeft: '1rem', background: 'transparent', color: '#fed7aa', fontSize: '1.3rem', flexShrink: 0 }}
+          >×</button>
+        </div>
+      )}
 
       {/* ── Crisis banners ── */}
       {(config?.IS_HIGH_DEMAND === 'true' || config?.IS_POWER_OUTAGE === 'true' || isPaused) && (

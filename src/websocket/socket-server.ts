@@ -5,6 +5,7 @@
  *   order:new        — { order }       when a new order is created
  *   order:updated    — { order }       when an order status changes
  *   stats:updated    — { stats }       after any order mutation
+ *   menu:updated     — { itemId }      when a menu item is enabled/disabled
  */
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
@@ -46,6 +47,10 @@ export function emitStatsUpdated(stats: unknown): void {
 
 export function emitConfigUpdated(data: { key: string; value: string }): void {
   io?.emit('config:updated', data);
+}
+
+export function emitMenuUpdated(itemId: string): void {
+  io?.emit('menu:updated', { itemId });
 }
 
 export function getIo(): SocketServer | null {

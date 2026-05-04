@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../db/prisma';
 import jwt from 'jsonwebtoken';
-import { emitOrderUpdated, emitStatsUpdated, emitConfigUpdated } from '../websocket/socket-server';
+import { emitOrderUpdated, emitStatsUpdated, emitConfigUpdated, emitMenuUpdated } from '../websocket/socket-server';
 import { getTopCustomers, getCustomerStats } from '../customers/customer-stats';
 import { invalidateConfigCache, invalidateMenuCache, getConfig } from '../menu/config-service';
 import { createOrder, updateOrderStatus, emitTodayStats } from '../orders/order-service';
@@ -683,6 +683,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           data: req.body as never,
         });
         await invalidateMenuCache(updated.categoryId);
+        if ('isAvailable' in req.body) emitMenuUpdated(updated.id);
         return updated;
       } catch {
         return reply.code(404).send({ error: 'Menu item not found' });
