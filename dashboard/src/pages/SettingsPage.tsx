@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [config, setConfig]         = useState<Record<string, string>>({});
   const [saving, setSaving]         = useState<string | null>(null);
   const [saved, setSaved]           = useState<string | null>(null);
+  const [crisisSaving, setCrisisSaving] = useState<string | null>(null);
 
   // Motorizados
   const [drivers, setDrivers]         = useState<Driver[]>([]);
@@ -150,6 +151,40 @@ export default function SettingsPage() {
 
   const rate = parseFloat(config['USD_TO_BS_RATE'] ?? '0') || 0;
 
+  const handleCrisisToggle = async (key: string) => {
+    const current = config[key] === 'true';
+    setCrisisSaving(key);
+    try {
+      await configApi.update(key, String(!current));
+      setConfig(prev => ({ ...prev, [key]: String(!current) }));
+    } finally {
+      setCrisisSaving(null);
+    }
+  };
+
+  const handleActivatePause = async () => {
+    const minutes = parseInt(config['ORDERS_PAUSE_MINUTES'] ?? '15', 10) || 15;
+    const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+    setCrisisSaving('IS_ORDERS_PAUSED');
+    try {
+      await configApi.update('ORDERS_PAUSE_UNTIL', until);
+      await configApi.update('IS_ORDERS_PAUSED', 'true');
+      setConfig(prev => ({ ...prev, IS_ORDERS_PAUSED: 'true', ORDERS_PAUSE_UNTIL: until }));
+    } finally {
+      setCrisisSaving(null);
+    }
+  };
+
+  const handleDeactivatePause = async () => {
+    setCrisisSaving('IS_ORDERS_PAUSED');
+    try {
+      await configApi.update('IS_ORDERS_PAUSED', 'false');
+      setConfig(prev => ({ ...prev, IS_ORDERS_PAUSED: 'false' }));
+    } finally {
+      setCrisisSaving(null);
+    }
+  };
+
   const bsToUsd = (bs: string) => {
     const n = parseFloat(bs);
     if (!n || !rate) return '';
@@ -225,6 +260,115 @@ export default function SettingsPage() {
   return (
     <div>
       <h2 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>⚙️ Configuración</h2>
+
+      {/* ── Control de Crisis ─────────────────────────────────────────── */}
+      <div style={{ marginBottom: '2rem', maxWidth: 600 }}>
+        <h3 style={{ fontSize: '1.05rem', marginBottom: '1rem', color: '#ef4444' }}>🚨 Control de Crisis</h3>
+
+        {/* Alta demanda */}
+        <div className="card" style={{ marginBottom: '0.75rem', borderLeft: config['IS_HIGH_DEMAND'] === 'true' ? '3px solid #f59e0b' : undefined }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>⏳ Alta demanda</p>
+              <p className="text-muted text-xs">Banner ámbar en la PWA — tiempos de espera aumentados</p>
+            </div>
+            <button
+              className={`btn btn-sm ${config['IS_HIGH_DEMAND'] === 'true' ? 'btn-danger' : 'btn-success'}`}
+              style={{ background: config['IS_HIGH_DEMAND'] === 'true' ? '#f59e0b' : undefined, minWidth: 90 }}
+              disabled={crisisSaving === 'IS_HIGH_DEMAND'}
+              onClick={() => void handleCrisisToggle('IS_HIGH_DEMAND')}
+            >
+              {crisisSaving === 'IS_HIGH_DEMAND' ? '...' : config['IS_HIGH_DEMAND'] === 'true' ? '✅ Activo' : '⬜ Inactivo'}
+            </button>
+          </div>
+        </div>
+
+        {/* Sin luz / Contingencia */}
+        <div className="card" style={{ marginBottom: '0.75rem', borderLeft: config['IS_POWER_OUTAGE'] === 'true' ? '3px solid #ef4444' : undefined }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div>
+              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>⚡ Sin luz / Contingencia</p>
+              <p className="text-muted text-xs">Banner rojo en la PWA con mensaje personalizable</p>
+            </div>
+            <button
+              className={`btn btn-sm ${config['IS_POWER_OUTAGE'] === 'true' ? 'btn-danger' : 'btn-success'}`}
+              style={{ minWidth: 90 }}
+              disabled={crisisSaving === 'IS_POWER_OUTAGE'}
+              onClick={() => void handleCrisisToggle('IS_POWER_OUTAGE')}
+            >
+              {crisisSaving === 'IS_POWER_OUTAGE' ? '...' : config['IS_POWER_OUTAGE'] === 'true' ? '🔴 Activo' : '⬜ Inactivo'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              type="text"
+              value={config['OUTAGE_MESSAGE'] ?? ''}
+              onChange={e => setConfig(prev => ({ ...prev, OUTAGE_MESSAGE: e.target.value }))}
+              placeholder="Mensaje para el cliente..."
+              style={{ flex: 1, fontSize: '0.85rem' }}
+            />
+            <button
+              className="btn btn-sm btn-primary"
+              disabled={saving === 'OUTAGE_MESSAGE'}
+              onClick={() => void handleSave('OUTAGE_MESSAGE', config['OUTAGE_MESSAGE'] ?? '')}
+            >
+              {saving === 'OUTAGE_MESSAGE' ? '...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+
+        {/* Pausar pedidos */}
+        <div className="card" style={{ borderLeft: config['IS_ORDERS_PAUSED'] === 'true' ? '3px solid #6366f1' : undefined }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+            <div>
+              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>⏸️ Pausar pedidos</p>
+              <p className="text-muted text-xs">Deshabilita el checkout por X minutos con contador visible</p>
+            </div>
+            {config['IS_ORDERS_PAUSED'] === 'true' ? (
+              <button
+                className="btn btn-sm btn-danger"
+                disabled={crisisSaving === 'IS_ORDERS_PAUSED'}
+                onClick={() => void handleDeactivatePause()}
+                style={{ minWidth: 100 }}
+              >
+                {crisisSaving === 'IS_ORDERS_PAUSED' ? '...' : '🔓 Reanudar'}
+              </button>
+            ) : (
+              <button
+                className="btn btn-sm"
+                disabled={crisisSaving === 'IS_ORDERS_PAUSED'}
+                onClick={() => void handleActivatePause()}
+                style={{ background: '#6366f1', color: '#fff', minWidth: 100 }}
+              >
+                {crisisSaving === 'IS_ORDERS_PAUSED' ? '...' : '⏸️ Pausar'}
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text2)', whiteSpace: 'nowrap' }}>Minutos:</label>
+            <input
+              type="number"
+              min="1"
+              max="180"
+              value={config['ORDERS_PAUSE_MINUTES'] ?? '15'}
+              onChange={e => setConfig(prev => ({ ...prev, ORDERS_PAUSE_MINUTES: e.target.value }))}
+              style={{ width: 70, fontSize: '0.85rem' }}
+            />
+            <button
+              className="btn btn-sm btn-primary"
+              disabled={saving === 'ORDERS_PAUSE_MINUTES'}
+              onClick={() => void handleSave('ORDERS_PAUSE_MINUTES', config['ORDERS_PAUSE_MINUTES'] ?? '15')}
+            >
+              {saving === 'ORDERS_PAUSE_MINUTES' ? '...' : 'Guardar'}
+            </button>
+            {config['IS_ORDERS_PAUSED'] === 'true' && config['ORDERS_PAUSE_UNTIL'] && (
+              <span style={{ fontSize: '0.75rem', color: '#a5b4fc' }}>
+                Hasta {new Date(config['ORDERS_PAUSE_UNTIL']).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* ── Config general ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 600 }}>

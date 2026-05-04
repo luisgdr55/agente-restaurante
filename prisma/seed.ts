@@ -26,6 +26,13 @@ async function main() {
     { key: 'SCHEDULE_OPEN_TIME',  value: '10:00',           description: 'Hora de apertura automática en VEN (UTC-4), formato HH:MM' },
     { key: 'SCHEDULE_CLOSE_TIME', value: '22:00',           description: 'Hora de cierre automático en VEN (UTC-4), formato HH:MM' },
     { key: 'SCHEDULE_DAYS',       value: '[1,2,3,4,5,6]',  description: 'Días activos (JSON): 0=Dom, 1=Lun … 6=Sáb' },
+    // ── Crisis control ──────────────────────────────────────────────────────
+    { key: 'IS_HIGH_DEMAND',      value: 'false', description: 'Control de crisis: alta demanda activa (true/false)' },
+    { key: 'IS_POWER_OUTAGE',     value: 'false', description: 'Control de crisis: contingencia eléctrica activa (true/false)' },
+    { key: 'OUTAGE_MESSAGE',      value: 'Estamos con fallas eléctricas, procesando pedidos con cautela 🕯️', description: 'Mensaje personalizable para contingencia eléctrica' },
+    { key: 'IS_ORDERS_PAUSED',    value: 'false', description: 'Control de crisis: pedidos pausados (true/false)' },
+    { key: 'ORDERS_PAUSE_MINUTES', value: '15',  description: 'Minutos de pausa al activar PAUSA_PEDIDOS' },
+    { key: 'ORDERS_PAUSE_UNTIL',  value: '',      description: 'Timestamp ISO de reapertura (vacío si inactivo)' },
   ];
 
   for (const config of configs) {

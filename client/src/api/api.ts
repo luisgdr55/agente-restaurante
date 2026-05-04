@@ -39,6 +39,12 @@ export interface PublicConfig {
   SCHEDULE_CLOSE_TIME: string
   SCHEDULE_DAYS: string
   vapidPublicKey: string
+  IS_HIGH_DEMAND?: string
+  IS_POWER_OUTAGE?: string
+  OUTAGE_MESSAGE?: string
+  IS_ORDERS_PAUSED?: string
+  ORDERS_PAUSE_MINUTES?: string
+  ORDERS_PAUSE_UNTIL?: string
 }
 
 // Returns true if the restaurant is currently open.

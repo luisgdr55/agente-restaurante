@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { io } from 'socket.io-client'
 import { publicApi, isRestaurantOpen, type MenuCategory, type PublicConfig } from '../api/api'
 import { useCart } from '../store/cart'
 import Layout from '../components/Layout'
@@ -78,6 +79,7 @@ export default function MenuPage() {
   const [heroHovered, setHeroHovered] = useState(false)
   const [addingId, setAddingId] = useState<string | null>(null)
   const [countBouncing, setCountBouncing] = useState(false)
+  const [pauseCountdown, setPauseCountdown] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(0)
   const { items, add, remove, clear, total, count } = useCart()
@@ -107,6 +109,38 @@ export default function MenuPage() {
     }
     prevCountRef.current = count
   }, [count])
+
+  // Real-time config updates (crisis banners, pause state)
+  useEffect(() => {
+    const BACKEND = import.meta.env.VITE_BACKEND_URL ?? 'https://yebrams.up.railway.app'
+    const socket = io(BACKEND, { path: '/ws', transports: ['websocket'], reconnection: true })
+    socket.on('config:updated', ({ key, value }: { key: string; value: string }) => {
+      setConfig(prev => prev ? { ...prev, [key]: value } as PublicConfig : prev)
+    })
+    return () => { socket.disconnect() }
+  }, [])
+
+  // Pause countdown
+  useEffect(() => {
+    if (config?.IS_ORDERS_PAUSED !== 'true' || !config.ORDERS_PAUSE_UNTIL) {
+      setPauseCountdown(null)
+      return
+    }
+    const update = () => {
+      const ms = new Date(config.ORDERS_PAUSE_UNTIL!).getTime() - Date.now()
+      if (ms <= 0) {
+        setPauseCountdown(null)
+        setConfig(prev => prev ? { ...prev, IS_ORDERS_PAUSED: 'false' } as PublicConfig : prev)
+        return
+      }
+      const m = Math.floor(ms / 60000)
+      const s = Math.floor((ms % 60000) / 1000)
+      setPauseCountdown(`${m}:${s.toString().padStart(2, '0')}`)
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [config?.IS_ORDERS_PAUSED, config?.ORDERS_PAUSE_UNTIL])
 
   const handleCartClose = () => {
     setCartClosing(true)
@@ -147,8 +181,11 @@ export default function MenuPage() {
     }
   }
 
+  const isPaused = config?.IS_ORDERS_PAUSED === 'true'
+
   const handleCheckout = () => {
     if (items.length === 0) return
+    if (isPaused) return
     sessionStorage.setItem('yebrams_checkout_cart', JSON.stringify(items))
     sessionStorage.setItem('yebrams_checkout_config', JSON.stringify(config))
     handleCartClose()
@@ -313,6 +350,46 @@ export default function MenuPage() {
           <div style={{ width: 1, height: 28, background: '#F5C518' }} />
         </div>
       </div>
+
+      {/* ── Crisis banners ── */}
+      {(config?.IS_HIGH_DEMAND === 'true' || config?.IS_POWER_OUTAGE === 'true' || isPaused) && (
+        <div style={{ position: 'sticky', top: 57, zIndex: 80 }}>
+          {config?.IS_HIGH_DEMAND === 'true' && (
+            <div style={{
+              background: '#78350f',
+              borderBottom: '2px solid #f59e0b',
+              padding: '0.5rem 1rem',
+              textAlign: 'center',
+              fontSize: '0.85rem', fontWeight: 700, color: '#fde68a',
+            }}>
+              ⏳ Alta demanda — los tiempos de espera son mayores al normal
+            </div>
+          )}
+          {config?.IS_POWER_OUTAGE === 'true' && (
+            <div style={{
+              background: '#7f1d1d',
+              borderBottom: '2px solid #ef4444',
+              padding: '0.5rem 1rem',
+              textAlign: 'center',
+              fontSize: '0.85rem', fontWeight: 700, color: '#fecaca',
+            }}>
+              ⚡ {config.OUTAGE_MESSAGE || 'Estamos con fallas eléctricas, procesando pedidos con cautela'}
+            </div>
+          )}
+          {isPaused && (
+            <div style={{
+              background: '#1e1b4b',
+              borderBottom: '2px solid #6366f1',
+              padding: '0.5rem 1rem',
+              textAlign: 'center',
+              fontSize: '0.85rem', fontWeight: 700, color: '#c7d2fe',
+            }}>
+              ⏸️ Pedidos pausados
+              {pauseCountdown && ` — reabrimos en ${pauseCountdown}`}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Category tabs ── */}
       <div ref={menuRef} style={{
@@ -621,6 +698,8 @@ export default function MenuPage() {
           onClose={handleCartClose}
           onCheckout={handleCheckout}
           closing={cartClosing}
+          isPaused={isPaused}
+          pauseCountdown={pauseCountdown}
         />
       )}
     </Layout>

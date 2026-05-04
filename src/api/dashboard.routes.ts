@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../db/prisma';
 import jwt from 'jsonwebtoken';
-import { emitOrderUpdated, emitStatsUpdated } from '../websocket/socket-server';
+import { emitOrderUpdated, emitStatsUpdated, emitConfigUpdated } from '../websocket/socket-server';
 import { getTopCustomers, getCustomerStats } from '../customers/customer-stats';
 import { invalidateConfigCache, invalidateMenuCache, getConfig } from '../menu/config-service';
 import { createOrder, updateOrderStatus, emitTodayStats } from '../orders/order-service';
@@ -564,11 +564,16 @@ export async function dashboardRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { key, value } = req.body;
       try {
-        const result = await prisma.systemConfig.update({ where: { key }, data: { value } });
+        const result = await prisma.systemConfig.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
         await invalidateConfigCache(key as never);
+        emitConfigUpdated({ key, value });
         return result;
       } catch {
-        return reply.code(404).send({ error: 'Config key not found' });
+        return reply.code(500).send({ error: 'Failed to update config' });
       }
     },
   );
@@ -1564,6 +1569,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
       'SCHEDULE_OPEN_TIME',
       'SCHEDULE_CLOSE_TIME',
       'SCHEDULE_DAYS',
+      'IS_HIGH_DEMAND',
+      'IS_POWER_OUTAGE',
+      'OUTAGE_MESSAGE',
+      'IS_ORDERS_PAUSED',
+      'ORDERS_PAUSE_MINUTES',
+      'ORDERS_PAUSE_UNTIL',
     ];
     const rows = await prisma.systemConfig.findMany({ where: { key: { in: keys } } });
     const config = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -1592,6 +1603,25 @@ export async function dashboardRoutes(app: FastifyInstance) {
       if (!items?.length) return reply.code(400).send({ error: 'items is required' });
       if (deliveryType === 'DELIVERY' && !address?.trim()) {
         return reply.code(400).send({ error: 'address is required for delivery' });
+      }
+
+      // Crisis: check if orders are paused
+      if ((await getConfig('IS_ORDERS_PAUSED')) === 'true') {
+        const pauseUntil = await getConfig('ORDERS_PAUSE_UNTIL');
+        if (!pauseUntil || new Date(pauseUntil) > new Date()) {
+          return reply.code(503).send({
+            error: 'ORDERS_PAUSED',
+            message: 'Pedidos pausados temporalmente. ¡Volvemos enseguida! 🙏',
+            resumesAt: pauseUntil ?? null,
+          });
+        }
+        // Pause expired — auto-clear
+        await prisma.systemConfig.upsert({
+          where: { key: 'IS_ORDERS_PAUSED' },
+          update: { value: 'false' },
+          create: { key: 'IS_ORDERS_PAUSED', value: 'false' },
+        });
+        emitConfigUpdated({ key: 'IS_ORDERS_PAUSED', value: 'false' });
       }
 
       const normalizedPhone = normalizeDriverPhone(phone.trim());

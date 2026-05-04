@@ -6,6 +6,8 @@ interface CartDrawerProps {
   deliveryFeeUsd: number
   rate: number
   closing?: boolean
+  isPaused?: boolean
+  pauseCountdown?: string | null
   onAdd: (item: Omit<CartItem, 'quantity'>) => void
   onRemove: (id: string) => void
   onClear: () => void
@@ -36,7 +38,7 @@ function usdToBs(usd: number, rate: number) {
   return (usd * rate).toFixed(2)
 }
 
-export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing, isPaused, pauseCountdown, onAdd, onRemove, onClear, onClose, onCheckout }: CartDrawerProps) {
   const grandTotal = total + deliveryFeeUsd
 
   return (
@@ -236,18 +238,35 @@ export default function CartDrawer({ items, total, deliveryFeeUsd, rate, closing
               </div>
             </div>
 
-            <button
-              onClick={onCheckout}
-              style={{
-                width: '100%', padding: '0.9rem',
-                background: 'var(--accent)', color: '#000',
-                borderRadius: 12, fontWeight: 800, fontSize: '1rem',
-                letterSpacing: '0.01em',
-                boxShadow: '0 4px 20px rgba(245,197,24,0.35)',
-              }}
-            >
-              Ir a pagar →
-            </button>
+            {isPaused ? (
+              <div style={{
+                width: '100%', padding: '0.85rem',
+                background: 'rgba(99,102,241,0.12)',
+                border: '1px solid rgba(99,102,241,0.35)',
+                borderRadius: 12, textAlign: 'center',
+                color: '#a5b4fc', fontWeight: 700, fontSize: '0.9rem',
+              }}>
+                ⏸️ Pedidos en pausa
+                {pauseCountdown && (
+                  <span style={{ display: 'block', fontSize: '1.3rem', fontWeight: 900, marginTop: '0.2rem', color: '#c7d2fe' }}>
+                    Reabrimos en {pauseCountdown}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={onCheckout}
+                style={{
+                  width: '100%', padding: '0.9rem',
+                  background: 'var(--accent)', color: '#000',
+                  borderRadius: 12, fontWeight: 800, fontSize: '1rem',
+                  letterSpacing: '0.01em',
+                  boxShadow: '0 4px 20px rgba(245,197,24,0.35)',
+                }}
+              >
+                Ir a pagar →
+              </button>
+            )}
           </div>
         )}
       </div>

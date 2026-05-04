@@ -44,6 +44,10 @@ export function emitStatsUpdated(stats: unknown): void {
   io?.emit('stats:updated', { stats });
 }
 
+export function emitConfigUpdated(data: { key: string; value: string }): void {
+  io?.emit('config:updated', data);
+}
+
 export function getIo(): SocketServer | null {
   return io;
 }
