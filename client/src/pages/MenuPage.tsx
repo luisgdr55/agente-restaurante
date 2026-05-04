@@ -48,6 +48,18 @@ const MENU_STYLES = `
   50%       { transform: translateY(6px); opacity: 0.7; }
 }
 @keyframes spin { to { transform: rotate(360deg) } }
+@keyframes pulseAmbar {
+  0%, 100% { box-shadow: 0 2px 12px rgba(245,158,11,0.3); }
+  50%       { box-shadow: 0 2px 28px rgba(245,158,11,0.85); }
+}
+@keyframes pulseRed {
+  0%, 100% { box-shadow: 0 2px 12px rgba(239,68,68,0.3); }
+  50%       { box-shadow: 0 2px 28px rgba(239,68,68,0.85); }
+}
+@keyframes pulseIndigo {
+  0%, 100% { box-shadow: 0 2px 12px rgba(99,102,241,0.3); }
+  50%       { box-shadow: 0 2px 28px rgba(99,102,241,0.85); }
+}
 `
 
 function ItemPlaceholder() {
@@ -358,33 +370,36 @@ export default function MenuPage() {
             <div style={{
               background: '#78350f',
               borderBottom: '2px solid #f59e0b',
-              padding: '0.5rem 1rem',
+              padding: '0.55rem 1rem',
               textAlign: 'center',
-              fontSize: '0.85rem', fontWeight: 700, color: '#fde68a',
+              fontSize: '1rem', fontWeight: 700, color: '#fde68a',
+              animation: 'pulseAmbar 1.5s ease-in-out infinite',
             }}>
-              ⏳ Alta demanda — los tiempos de espera son mayores al normal
+              <span style={{ fontSize: '1.3rem' }}>⏳</span>{' '}Alta demanda — los tiempos de espera son mayores al normal
             </div>
           )}
           {config?.IS_POWER_OUTAGE === 'true' && (
             <div style={{
               background: '#7f1d1d',
               borderBottom: '2px solid #ef4444',
-              padding: '0.5rem 1rem',
+              padding: '0.55rem 1rem',
               textAlign: 'center',
-              fontSize: '0.85rem', fontWeight: 700, color: '#fecaca',
+              fontSize: '1rem', fontWeight: 700, color: '#fecaca',
+              animation: 'pulseRed 1.5s ease-in-out infinite',
             }}>
-              ⚡ {config.OUTAGE_MESSAGE || 'Estamos con fallas eléctricas, procesando pedidos con cautela'}
+              <span style={{ fontSize: '1.3rem' }}>⚡</span>{' '}{config.OUTAGE_MESSAGE || 'Estamos con fallas eléctricas, procesando pedidos con cautela'}
             </div>
           )}
           {isPaused && (
             <div style={{
               background: '#1e1b4b',
               borderBottom: '2px solid #6366f1',
-              padding: '0.5rem 1rem',
+              padding: '0.55rem 1rem',
               textAlign: 'center',
-              fontSize: '0.85rem', fontWeight: 700, color: '#c7d2fe',
+              fontSize: '1rem', fontWeight: 700, color: '#c7d2fe',
+              animation: 'pulseIndigo 1.5s ease-in-out infinite',
             }}>
-              ⏸️ Pedidos pausados
+              <span style={{ fontSize: '1.3rem' }}>⏸️</span>{' '}Pedidos pausados
               {pauseCountdown && ` — reabrimos en ${pauseCountdown}`}
             </div>
           )}
