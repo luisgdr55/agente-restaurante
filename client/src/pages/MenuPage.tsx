@@ -255,6 +255,7 @@ export default function MenuPage() {
       <Layout>
         <style>{MENU_STYLES}</style>
         <div style={{
+          position: 'relative',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           minHeight: '100svh', padding: '2rem', textAlign: 'center',
           background: '#000000',
@@ -270,13 +271,13 @@ export default function MenuPage() {
               animation: 'logoGlow 1.8s ease-in-out infinite',
             }}
           />
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.5px' }}>
-            Estamos cerrados
+          <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#f5c518', marginBottom: '0.4rem', letterSpacing: '-0.5px' }}>
+            Estamos Cerrados
           </h1>
-          <p style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+          <p style={{ fontSize: '1.3rem', fontWeight: 700, color: '#ffffff', margin: '2rem 0 0' }}>
             Vuelve pronto,
           </p>
-          <p style={{ fontSize: '1rem', color: '#f5c518', fontWeight: 700, marginTop: '0.75rem', marginBottom: openLabel ? 0 : '1.75rem' }}>
+          <p style={{ fontSize: '1rem', color: '#f5c518', fontWeight: 700, marginTop: '0.5rem', marginBottom: openLabel ? 0 : '1.75rem' }}>
             te esperamos con un Menú Super Crujiente 🍗
           </p>
           {openLabel && (
@@ -287,7 +288,7 @@ export default function MenuPage() {
           <div style={{
             background: 'rgba(99,102,241,0.08)', border: '1.5px solid rgba(99,102,241,0.25)',
             borderRadius: 16, padding: '1rem 1.75rem', maxWidth: 300, width: '100%',
-            animation: 'sleepGlow 2.2s ease-in-out infinite',
+            animation: 'logoGlow 1.8s ease-in-out infinite',
           }}>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
               Horario
@@ -296,6 +297,19 @@ export default function MenuPage() {
               {scheduleText}
             </p>
           </div>
+
+          {/* Footer */}
+          <p style={{ position: 'absolute', bottom: '1.5rem', fontSize: '12px', color: '#555' }}>
+            Desarrollado por{' '}
+            <a
+              href="https://wa.me/584165434760"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#f5c518', fontWeight: 700, textDecoration: 'none' }}
+            >
+              Luis
+            </a>
+          </p>
         </div>
       </Layout>
     )
