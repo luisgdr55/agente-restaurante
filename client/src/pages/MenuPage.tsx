@@ -255,14 +255,24 @@ export default function MenuPage() {
           minHeight: '100svh', padding: '2rem', textAlign: 'center',
           background: 'linear-gradient(160deg, #0d0d1a 0%, #111827 60%, #0d0d1a 100%)',
         }}>
-          <div style={{ fontSize: '5rem', marginBottom: '1.25rem', animation: 'sleepPulse 2.2s ease-in-out infinite' }}>
-            🍗
-          </div>
+          <img
+            src="/logo.png"
+            alt="Yebram's Restaurant"
+            style={{
+              width: 140, height: 140,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              marginBottom: '1.25rem',
+              animation: 'sleepPulse 2.2s ease-in-out infinite',
+              boxShadow: '0 0 0 4px rgba(245,197,24,0.15)',
+            }}
+          />
           <h1 style={{ fontSize: '1.6rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.5px' }}>
             Estamos cerrados
           </h1>
-          <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginBottom: openLabel ? '0.5rem' : '1.75rem', maxWidth: 280 }}>
-            Vuelve pronto, te esperamos con lo mejor 🍗
+          <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginBottom: openLabel ? '0.5rem' : '1.75rem', maxWidth: 300 }}>
+            Vuelve pronto, te esperamos con un{' '}
+            <strong style={{ color: '#f5c518' }}>Menú Super Crujiente</strong>!
           </p>
           {openLabel && (
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', marginBottom: '1.75rem' }}>
