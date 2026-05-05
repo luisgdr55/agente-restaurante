@@ -60,6 +60,10 @@ const MENU_STYLES = `
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50%       { opacity: 1;   transform: scale(1.18); }
 }
+@keyframes logoGlow {
+  0%, 100% { filter: drop-shadow(0 0 0px #f5c518); }
+  50%       { filter: drop-shadow(0 0 25px #f5c518); }
+}
 @keyframes sleepGlow {
   0%, 100% { box-shadow: 0 0 0px rgba(99,102,241,0); }
   50%       { box-shadow: 0 0 40px rgba(99,102,241,0.35); }
@@ -253,7 +257,7 @@ export default function MenuPage() {
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           minHeight: '100svh', padding: '2rem', textAlign: 'center',
-          background: 'linear-gradient(160deg, #0d0d1a 0%, #111827 60%, #0d0d1a 100%)',
+          background: '#000000',
         }}>
           <img
             src="/logo.png"
@@ -263,19 +267,20 @@ export default function MenuPage() {
               borderRadius: '50%',
               objectFit: 'cover',
               marginBottom: '1.25rem',
-              animation: 'sleepPulse 2.2s ease-in-out infinite',
-              boxShadow: '0 0 0 4px rgba(245,197,24,0.15)',
+              animation: 'logoGlow 1.8s ease-in-out infinite',
             }}
           />
           <h1 style={{ fontSize: '1.6rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.5px' }}>
             Estamos cerrados
           </h1>
-          <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginBottom: openLabel ? '0.5rem' : '1.75rem', maxWidth: 300 }}>
-            Vuelve pronto, te esperamos con un{' '}
-            <strong style={{ color: '#f5c518' }}>Menú Super Crujiente</strong>!
+          <p style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+            Vuelve pronto,
+          </p>
+          <p style={{ fontSize: '1rem', color: '#f5c518', fontWeight: 700, marginTop: '0.75rem', marginBottom: openLabel ? 0 : '1.75rem' }}>
+            te esperamos con un Menú Super Crujiente 🍗
           </p>
           {openLabel && (
-            <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', marginBottom: '1.75rem' }}>
+            <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', marginTop: '2rem', marginBottom: '1.75rem' }}>
               Volvemos a las <strong style={{ color: '#a5b4fc' }}>{openLabel}</strong>
             </p>
           )}
