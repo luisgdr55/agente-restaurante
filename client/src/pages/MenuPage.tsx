@@ -301,7 +301,7 @@ export default function MenuPage() {
           <p style={{ position: 'absolute', bottom: '1.5rem', fontSize: '12px', color: '#555' }}>
             Desarrollado por{' '}
             <a
-              href="https://wa.me/584165434760?text=Hola!%20Estoy%20interesado%20en%20un%20sistema%20como%20este%20para%20mi%20Negocio."
+              href="https://wa.me/584165434760?text=Hola!%20Me%20gusta%20lo%20que%20hiciste%20en%20Yebram's%2C%20quisiera%20esto%20para%20mi%20negocio."
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#f5c518', fontWeight: 700, textDecoration: 'none' }}
@@ -687,7 +687,7 @@ export default function MenuPage() {
           <span style={{ color: '#F5C518', fontWeight: 700 }}>Luis</span>
         </p>
         <a
-          href="https://wa.me/584165434760?text=Hola%20Luis!%20Vi%20tu%20trabajo%20en%20Yebram's%20y%20me%20interesa%20un%20sistema%20as%C3%AD%20para%20mi%20negocio%20%F0%9F%8D%BD%EF%B8%8F"
+          href="https://wa.me/584165434760?text=Hola!%20Me%20gusta%20lo%20que%20hiciste%20en%20Yebram's%2C%20quisiera%20esto%20para%20mi%20negocio."
           target="_blank"
           rel="noopener noreferrer"
           style={{
