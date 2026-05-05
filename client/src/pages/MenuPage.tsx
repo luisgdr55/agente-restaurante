@@ -244,10 +244,9 @@ export default function MenuPage() {
 
   if (config && (!isRestaurantOpen(config) || isOutsideBusinessHours(config))) {
     const openLabel = config.BUSINESS_OPEN_TIME ? formatHour(config.BUSINESS_OPEN_TIME) : null
-    const scheduleText = config.RESTAURANT_HOURS
-      || (config.BUSINESS_OPEN_TIME && config.BUSINESS_CLOSE_TIME
-        ? `${formatHour(config.BUSINESS_OPEN_TIME)} — ${formatHour(config.BUSINESS_CLOSE_TIME)}`
-        : 'Próximamente')
+    const scheduleText = (config.BUSINESS_OPEN_TIME && config.BUSINESS_CLOSE_TIME)
+      ? `${formatHour(config.BUSINESS_OPEN_TIME)} — ${formatHour(config.BUSINESS_CLOSE_TIME)}`
+      : 'Consulta nuestro horario'
     return (
       <Layout>
         <style>{MENU_STYLES}</style>
@@ -257,11 +256,14 @@ export default function MenuPage() {
           background: 'linear-gradient(160deg, #0d0d1a 0%, #111827 60%, #0d0d1a 100%)',
         }}>
           <div style={{ fontSize: '5rem', marginBottom: '1.25rem', animation: 'sleepPulse 2.2s ease-in-out infinite' }}>
-            🌙
+            🍗
           </div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.5px' }}>
-            Estamos descansando
+            Estamos cerrados
           </h1>
+          <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginBottom: openLabel ? '0.5rem' : '1.75rem', maxWidth: 280 }}>
+            Vuelve pronto, te esperamos con lo mejor 🍗
+          </p>
           {openLabel && (
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', marginBottom: '1.75rem' }}>
               Volvemos a las <strong style={{ color: '#a5b4fc' }}>{openLabel}</strong>
