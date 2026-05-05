@@ -42,6 +42,8 @@ export interface SystemConfigMap {
   IS_ORDERS_PAUSED: string;
   ORDERS_PAUSE_MINUTES: string;
   ORDERS_PAUSE_UNTIL: string;
+  BUSINESS_OPEN_TIME: string;
+  BUSINESS_CLOSE_TIME: string;
 }
 
 export type ConfigKey = keyof SystemConfigMap;

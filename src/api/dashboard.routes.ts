@@ -1576,6 +1576,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
       'IS_ORDERS_PAUSED',
       'ORDERS_PAUSE_MINUTES',
       'ORDERS_PAUSE_UNTIL',
+      'BUSINESS_OPEN_TIME',
+      'BUSINESS_CLOSE_TIME',
     ];
     const rows = await prisma.systemConfig.findMany({ where: { key: { in: keys } } });
     const config = Object.fromEntries(rows.map((r) => [r.key, r.value]));

@@ -13,13 +13,14 @@ const EDITABLE_KEYS = [
   { key: 'BUSINESS_ACTIVE',     label: 'Restaurante activo',                   type: 'toggle' },
   { key: 'DELIVERY_AVAILABLE',  label: 'Delivery disponible',                  type: 'toggle' },
   { key: 'DELIVERY_FEE_USD',    label: 'Precio delivery (USD)',                type: 'number' },
-  { key: 'MIN_ORDER_USD',       label: 'Pedido mínimo (USD)',                  type: 'number' },
   { key: 'PAGO_MOVIL_BANK',     label: 'Banco pago móvil',                     type: 'text'   },
   { key: 'PAGO_MOVIL_PHONE',    label: 'Teléfono pago móvil',                  type: 'text'   },
   { key: 'PAGO_MOVIL_HOLDER',   label: 'Titular pago móvil',                   type: 'text'   },
   { key: 'PAGO_MOVIL_RIF',      label: 'RIF/CI pago móvil',                    type: 'text'   },
   { key: 'ADMIN_PHONE',         label: 'Teléfono admin (con código país sin +)', type: 'text' },
   { key: 'NOTIFICATION_PHONE',  label: 'Teléfono notificaciones de pedidos',   type: 'text'   },
+  { key: 'BUSINESS_OPEN_TIME',  label: 'Hora apertura (HH:MM Venezuela)',      type: 'text'   },
+  { key: 'BUSINESS_CLOSE_TIME', label: 'Hora cierre (HH:MM Venezuela)',        type: 'text'   },
 ];
 
 const DAYS = [
@@ -162,29 +163,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleActivatePause = async () => {
-    const minutes = parseInt(config['ORDERS_PAUSE_MINUTES'] ?? '15', 10) || 15;
-    const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-    setCrisisSaving('IS_ORDERS_PAUSED');
-    try {
-      await configApi.update('ORDERS_PAUSE_UNTIL', until);
-      await configApi.update('IS_ORDERS_PAUSED', 'true');
-      setConfig(prev => ({ ...prev, IS_ORDERS_PAUSED: 'true', ORDERS_PAUSE_UNTIL: until }));
-    } finally {
-      setCrisisSaving(null);
-    }
-  };
-
-  const handleDeactivatePause = async () => {
-    setCrisisSaving('IS_ORDERS_PAUSED');
-    try {
-      await configApi.update('IS_ORDERS_PAUSED', 'false');
-      setConfig(prev => ({ ...prev, IS_ORDERS_PAUSED: 'false' }));
-    } finally {
-      setCrisisSaving(null);
-    }
-  };
-
   const bsToUsd = (bs: string) => {
     const n = parseFloat(bs);
     if (!n || !rate) return '';
@@ -317,57 +295,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Pausar pedidos */}
-        <div className="card" style={{ borderLeft: config['IS_ORDERS_PAUSED'] === 'true' ? '3px solid #6366f1' : undefined }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-            <div>
-              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>⏸️ Pausar pedidos</p>
-              <p className="text-muted text-xs">Deshabilita el checkout por X minutos con contador visible</p>
-            </div>
-            {config['IS_ORDERS_PAUSED'] === 'true' ? (
-              <button
-                className="btn btn-sm btn-danger"
-                disabled={crisisSaving === 'IS_ORDERS_PAUSED'}
-                onClick={() => void handleDeactivatePause()}
-                style={{ minWidth: 100 }}
-              >
-                {crisisSaving === 'IS_ORDERS_PAUSED' ? '...' : '🔓 Reanudar'}
-              </button>
-            ) : (
-              <button
-                className="btn btn-sm"
-                disabled={crisisSaving === 'IS_ORDERS_PAUSED'}
-                onClick={() => void handleActivatePause()}
-                style={{ background: '#6366f1', color: '#fff', minWidth: 100 }}
-              >
-                {crisisSaving === 'IS_ORDERS_PAUSED' ? '...' : '⏸️ Pausar'}
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text2)', whiteSpace: 'nowrap' }}>Minutos:</label>
-            <input
-              type="number"
-              min="1"
-              max="180"
-              value={config['ORDERS_PAUSE_MINUTES'] ?? '15'}
-              onChange={e => setConfig(prev => ({ ...prev, ORDERS_PAUSE_MINUTES: e.target.value }))}
-              style={{ width: 70, fontSize: '0.85rem' }}
-            />
-            <button
-              className="btn btn-sm btn-primary"
-              disabled={saving === 'ORDERS_PAUSE_MINUTES'}
-              onClick={() => void handleSave('ORDERS_PAUSE_MINUTES', config['ORDERS_PAUSE_MINUTES'] ?? '15')}
-            >
-              {saving === 'ORDERS_PAUSE_MINUTES' ? '...' : 'Guardar'}
-            </button>
-            {config['IS_ORDERS_PAUSED'] === 'true' && config['ORDERS_PAUSE_UNTIL'] && (
-              <span style={{ fontSize: '0.75rem', color: '#a5b4fc' }}>
-                Hasta {new Date(config['ORDERS_PAUSE_UNTIL']).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* ── Config general ─────────────────────────────────────────────── */}

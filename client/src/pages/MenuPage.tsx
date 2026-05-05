@@ -56,7 +56,37 @@ const MENU_STYLES = `
   0%, 100% { box-shadow: 0 2px 12px rgba(239,68,68,0.3); }
   50%       { box-shadow: 0 2px 28px rgba(239,68,68,0.85); }
 }
+@keyframes sleepPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.18); }
+}
+@keyframes sleepGlow {
+  0%, 100% { box-shadow: 0 0 0px rgba(99,102,241,0); }
+  50%       { box-shadow: 0 0 40px rgba(99,102,241,0.35); }
+}
 `
+
+function formatHour(hhmm: string): string {
+  const [h = 0, m = 0] = hhmm.split(':').map(Number)
+  const period = h < 12 ? 'a.m.' : 'p.m.'
+  const h12 = h % 12 || 12
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`
+}
+
+function isOutsideBusinessHours(config: PublicConfig): boolean {
+  const open = config.BUSINESS_OPEN_TIME
+  const close = config.BUSINESS_CLOSE_TIME
+  if (!open || !close) return false
+  const venMs = Date.now() - 4 * 60 * 60 * 1000
+  const d = new Date(venMs)
+  const now = d.getUTCHours() * 60 + d.getUTCMinutes()
+  const [oh = 0, om = 0] = open.split(':').map(Number)
+  const [ch = 0, cm = 0] = close.split(':').map(Number)
+  const openMins = oh * 60 + om
+  const closeMins = ch * 60 + cm
+  if (closeMins > openMins) return !(now >= openMins && now < closeMins)
+  return !(now >= openMins || now < closeMins)
+}
 
 function ItemPlaceholder() {
   return (
@@ -212,29 +242,41 @@ export default function MenuPage() {
     )
   }
 
-  if (config && !isRestaurantOpen(config)) {
+  if (config && (!isRestaurantOpen(config) || isOutsideBusinessHours(config))) {
+    const openLabel = config.BUSINESS_OPEN_TIME ? formatHour(config.BUSINESS_OPEN_TIME) : null
+    const scheduleText = config.RESTAURANT_HOURS
+      || (config.BUSINESS_OPEN_TIME && config.BUSINESS_CLOSE_TIME
+        ? `${formatHour(config.BUSINESS_OPEN_TIME)} — ${formatHour(config.BUSINESS_CLOSE_TIME)}`
+        : 'Próximamente')
     return (
       <Layout>
+        <style>{MENU_STYLES}</style>
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          minHeight: '80vh', padding: '2rem', textAlign: 'center',
+          minHeight: '100svh', padding: '2rem', textAlign: 'center',
+          background: 'linear-gradient(160deg, #0d0d1a 0%, #111827 60%, #0d0d1a 100%)',
         }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🌙</div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-            Estamos cerrados
+          <div style={{ fontSize: '5rem', marginBottom: '1.25rem', animation: 'sleepPulse 2.2s ease-in-out infinite' }}>
+            🌙
+          </div>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.5px' }}>
+            Estamos descansando
           </h1>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: 300 }}>
-            En este momento no estamos recibiendo pedidos. ¡Vuelve pronto!
-          </p>
-          <div style={{
-            background: 'var(--surface)', borderRadius: 14,
-            padding: '1rem 1.5rem', maxWidth: 300, width: '100%',
-          }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Horario de atención
+          {openLabel && (
+            <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', marginBottom: '1.75rem' }}>
+              Volvemos a las <strong style={{ color: '#a5b4fc' }}>{openLabel}</strong>
             </p>
-            <p style={{ fontWeight: 600, color: 'var(--accent)' }}>
-              {config.RESTAURANT_HOURS || 'Próximamente'}
+          )}
+          <div style={{
+            background: 'rgba(99,102,241,0.08)', border: '1.5px solid rgba(99,102,241,0.25)',
+            borderRadius: 16, padding: '1rem 1.75rem', maxWidth: 300, width: '100%',
+            animation: 'sleepGlow 2.2s ease-in-out infinite',
+          }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
+              Horario
+            </p>
+            <p style={{ fontWeight: 700, color: '#c7d2fe', fontSize: '1rem' }}>
+              {scheduleText}
             </p>
           </div>
         </div>

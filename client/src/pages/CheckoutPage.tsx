@@ -110,7 +110,6 @@ export default function CheckoutPage() {
   const pagoMovilRows = config ? [
     { label: 'Banco',       value: config.PAGO_MOVIL_BANK },
     { label: 'Teléfono',    value: config.PAGO_MOVIL_PHONE },
-    { label: 'Titular',     value: config.PAGO_MOVIL_HOLDER },
     { label: 'RIF / Cédula',value: config.PAGO_MOVIL_RIF },
     { label: 'Monto',       value: `Bs ${usdToBs(total, rate)}` },
   ] : []

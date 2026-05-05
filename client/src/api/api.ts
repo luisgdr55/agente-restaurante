@@ -45,6 +45,8 @@ export interface PublicConfig {
   IS_ORDERS_PAUSED?: string
   ORDERS_PAUSE_MINUTES?: string
   ORDERS_PAUSE_UNTIL?: string
+  BUSINESS_OPEN_TIME?: string
+  BUSINESS_CLOSE_TIME?: string
 }
 
 // Returns true if the restaurant is currently open.
