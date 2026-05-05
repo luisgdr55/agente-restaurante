@@ -288,7 +288,6 @@ export default function MenuPage() {
           <div style={{
             background: 'rgba(99,102,241,0.08)', border: '1.5px solid rgba(99,102,241,0.25)',
             borderRadius: 16, padding: '1rem 1.75rem', maxWidth: 300, width: '100%',
-            animation: 'logoGlow 1.8s ease-in-out infinite',
           }}>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.4rem' }}>
               Horario
@@ -302,7 +301,7 @@ export default function MenuPage() {
           <p style={{ position: 'absolute', bottom: '1.5rem', fontSize: '12px', color: '#555' }}>
             Desarrollado por{' '}
             <a
-              href="https://wa.me/584165434760"
+              href="https://wa.me/584165434760?text=Hola!%20Estoy%20interesado%20en%20un%20sistema%20como%20este%20para%20mi%20Negocio."
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#f5c518', fontWeight: 700, textDecoration: 'none' }}
