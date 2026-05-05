@@ -542,3 +542,31 @@ Target: **carga inicial < 3 segundos en 4G venezolano** (~5 Mbps).
 - Audit Lighthouse en cada deploy para detectar regresiones
 
 ---
+
+## FEATURE 26 — Animación barra de progreso en OrderTrackingPage
+
+Mejora visual de la barra de progreso de 5 fases para hacerla más legible y llamativa.
+
+### Comportamiento
+- El paso activo pulsa/brilla con animación CSS continua (`@keyframes`)
+- El punto (círculo) del paso activo emite glow del color del estado:
+  - Dorado `#F5C518` — estado PAYMENT_CONFIRMED (pago verificado)
+  - Naranja `#f97316` — estado IN_KITCHEN (en cocina)
+  - Verde `#22c55e` — estados READY, OUT_FOR_DELIVERY, DELIVERED
+- Iconos y texto de todos los pasos aumentados para mayor legibilidad en móvil
+
+### Implementación
+- `OrderTrackingPage.tsx`: añadir `@keyframes progressGlow` en los estilos inline del componente
+- El glow se aplica solo al paso cuyo índice coincide con `currentPhase`
+- Color del glow se calcula a partir del `status` actual de la orden
+- El resto de pasos completos mantienen su color sólido sin animación (no distraen)
+- Los pasos futuros (grises) sin cambio
+
+### Referencia de colores por estado
+| Status | Color glow |
+|---|---|
+| PAYMENT_CONFIRMED | `rgba(245,197,24,0.6)` dorado |
+| IN_KITCHEN | `rgba(249,115,22,0.6)` naranja |
+| READY / OUT_FOR_DELIVERY / DELIVERED | `rgba(34,197,94,0.6)` verde |
+
+---
