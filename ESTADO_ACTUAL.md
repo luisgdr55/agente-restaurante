@@ -476,11 +476,11 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
 
 ### ✅ Feature 19 — Módulo Control de Crisis
 
-- **Dashboard SettingsPage**: 4 controles en panel "Control de Crisis":
+- **Dashboard SettingsPage**: 2 controles en panel "Control de Crisis":
   - Toggle ⏳ Alta demanda (IS_HIGH_DEMAND) — banner ámbar en PWA
   - Toggle ⚡ Sin luz (IS_POWER_OUTAGE) + campo OUTAGE_MESSAGE personalizable — banner rojo
-  - Toggle/timer ⏸️ Pausar pedidos (IS_ORDERS_PAUSED) con minutos configurables y auto-expiración
-- **6 claves nuevas en `SystemConfigMap`**: `IS_HIGH_DEMAND`, `IS_POWER_OUTAGE`, `OUTAGE_MESSAGE`, `IS_ORDERS_PAUSED`, `ORDERS_PAUSE_MINUTES`, `ORDERS_PAUSE_UNTIL`
+  - ~~Toggle Pausar pedidos~~ — eliminado; la estrategia de lista de espera lo cubre
+- **6 claves en `SystemConfigMap`**: `IS_HIGH_DEMAND`, `IS_POWER_OUTAGE`, `OUTAGE_MESSAGE`, `IS_ORDERS_PAUSED`, `ORDERS_PAUSE_MINUTES`, `ORDERS_PAUSE_UNTIL`
 - **Banners sticky en PWA** (`MenuPage.tsx`):
   - Ámbar (IS_HIGH_DEMAND o IS_ORDERS_PAUSED fusionados): "Alta demanda — tu pedido entrará en cola" con animación `pulseAmbar 1.5s`
   - Rojo (IS_POWER_OUTAGE): mensaje configurable con animación `pulseRed 1.5s`
@@ -504,6 +504,23 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
   - Si algún ítem agotado: botón "Eliminar" inline por ítem con banner naranja por ítem
   - Si todos los ítems agotados: bloqueo rojo "Tu pedido no puede procesarse"
   - Si ninguno agotado: botón normal "Ir a pagar →"
+
+### ✅ Limpieza Settings + Checkout + horario PWA (misma sesión)
+
+- **SettingsPage eliminaciones**:
+  - Campo `MIN_ORDER_USD` (Pedido mínimo) quitado del formulario
+  - Campo `PAGO_MOVIL_HOLDER` (Titular pago móvil) quitado del formulario
+  - Toggle "Pausar pedidos" completo (UI + handlers `handleActivatePause`/`handleDeactivatePause`) eliminado
+- **Horario del restaurante en Settings**:
+  - Nuevos campos `BUSINESS_OPEN_TIME` y `BUSINESS_CLOSE_TIME` con `type="time"` — selector nativo del browser (ruedita en móvil), labels "Abre a las" / "Cierra a las"
+  - Claves añadidas a `SystemConfigMap` y a `GET /api/public/config`
+- **CheckoutPage**: eliminada fila "Titular" de la tabla de pago móvil y del botón "Copiar todos los datos"
+- **MenuPage — pantalla fuera de horario**:
+  - `isOutsideBusinessHours(config)` evalúa BUSINESS_OPEN_TIME/CLOSE_TIME en cliente (Venezuela UTC-4)
+  - Pantalla full-screen con fondo `#0d0d1a`, 🌙 con `sleepPulse 2.2s`, card indigo con `sleepGlow 2.2s`
+  - Mensaje: "Estamos descansando — Volvemos a las **X a.m.**" con hora formateada por `formatHour()`
+  - Se activa combinado con `!isRestaurantOpen(config)` existente
+- **MenuPage footer**: eliminada línea "⚡ Potenciado por tecnología"; quedan "Desarrollado por Luis" + botón WhatsApp
 
 ## Pendientes priorizados (feedback cliente 2026-04-28)
 
