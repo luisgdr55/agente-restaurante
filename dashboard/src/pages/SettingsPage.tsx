@@ -15,12 +15,11 @@ const EDITABLE_KEYS = [
   { key: 'DELIVERY_FEE_USD',    label: 'Precio delivery (USD)',                type: 'number' },
   { key: 'PAGO_MOVIL_BANK',     label: 'Banco pago móvil',                     type: 'text'   },
   { key: 'PAGO_MOVIL_PHONE',    label: 'Teléfono pago móvil',                  type: 'text'   },
-  { key: 'PAGO_MOVIL_HOLDER',   label: 'Titular pago móvil',                   type: 'text'   },
   { key: 'PAGO_MOVIL_RIF',      label: 'RIF/CI pago móvil',                    type: 'text'   },
   { key: 'ADMIN_PHONE',         label: 'Teléfono admin (con código país sin +)', type: 'text' },
   { key: 'NOTIFICATION_PHONE',  label: 'Teléfono notificaciones de pedidos',   type: 'text'   },
-  { key: 'BUSINESS_OPEN_TIME',  label: 'Hora apertura (HH:MM Venezuela)',      type: 'text'   },
-  { key: 'BUSINESS_CLOSE_TIME', label: 'Hora cierre (HH:MM Venezuela)',        type: 'text'   },
+  { key: 'BUSINESS_OPEN_TIME',  label: 'Abre a las',                           type: 'time'   },
+  { key: 'BUSINESS_CLOSE_TIME', label: 'Cierra a las',                         type: 'time'   },
 ];
 
 const DAYS = [

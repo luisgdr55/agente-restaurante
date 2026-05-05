@@ -652,10 +652,6 @@ export default function MenuPage() {
           background: 'rgba(245,197,24,0.2)',
           margin: '0 auto 1.25rem',
         }} />
-        <p style={{ fontSize: '11px', color: '#555', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>
-          <span style={{ opacity: 0.5 }}>&lt;/&gt;</span>
-          {'  '}⚡ Potenciado por tecnología
-        </p>
         <p style={{ fontSize: '12px', color: '#888', marginBottom: '1rem' }}>
           Desarrollado por{' '}
           <span style={{ color: '#F5C518', fontWeight: 700 }}>Luis</span>
