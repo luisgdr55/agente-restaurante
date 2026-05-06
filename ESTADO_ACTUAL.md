@@ -505,66 +505,68 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
   - Si todos los ítems agotados: bloqueo rojo "Tu pedido no puede procesarse"
   - Si ninguno agotado: botón normal "Ir a pagar →"
 
-### ✅ Limpieza Settings + Checkout + horario PWA (misma sesión)
+### ✅ Limpieza Settings + Checkout + horario PWA
 
-- **SettingsPage eliminaciones**:
-  - Campo `MIN_ORDER_USD` (Pedido mínimo) quitado del formulario
-  - Campo `PAGO_MOVIL_HOLDER` (Titular pago móvil) quitado del formulario
-  - Toggle "Pausar pedidos" completo (UI + handlers `handleActivatePause`/`handleDeactivatePause`) eliminado
-- **Horario del restaurante en Settings**:
-  - Nuevos campos `BUSINESS_OPEN_TIME` y `BUSINESS_CLOSE_TIME` con `type="time"` — selector nativo del browser (ruedita en móvil), labels "Abre a las" / "Cierra a las"
-  - Claves añadidas a `SystemConfigMap` y a `GET /api/public/config`
-- **CheckoutPage**: eliminada fila "Titular" de la tabla de pago móvil y del botón "Copiar todos los datos"
-- **MenuPage — pantalla fuera de horario**:
-  - `isOutsideBusinessHours(config)` evalúa BUSINESS_OPEN_TIME/CLOSE_TIME en cliente (Venezuela UTC-4)
-  - Pantalla full-screen con fondo `#0d0d1a`, 🌙 con `sleepPulse 2.2s`, card indigo con `sleepGlow 2.2s`
-  - Mensaje: "Estamos descansando — Volvemos a las **X a.m.**" con hora formateada por `formatHour()`
-  - Se activa combinado con `!isRestaurantOpen(config)` existente
-- **MenuPage footer**: eliminada línea "⚡ Potenciado por tecnología"; quedan "Desarrollado por Luis" + botón WhatsApp
+- **SettingsPage eliminaciones**: `MIN_ORDER_USD`, `PAGO_MOVIL_HOLDER`, toggle "Pausar pedidos" (UI + handlers)
+- **Horario en Settings**: `BUSINESS_OPEN_TIME` y `BUSINESS_CLOSE_TIME` con `type="time"` nativo, labels "Abre a las" / "Cierra a las". Añadidas a `SystemConfigMap` y a `GET /api/public/config`
+- **CheckoutPage**: fila "Titular" eliminada de tabla pago móvil y de "Copiar todos"
+- **Horario configurado en Railway**: `BUSINESS_OPEN_TIME = 11:30`, `BUSINESS_CLOSE_TIME = 19:30`
 
-## Pendientes priorizados (feedback cliente 2026-04-28)
+### ✅ Pantalla de cerrado PWA — diseño final
 
-### 🔴 Alta prioridad — bugs / UX crítico
+- **Lógica**: `isOutsideBusinessHours(config)` + `!isRestaurantOpen(config)` combinados; evalúa VEN UTC-4 en cliente
+- **Fondo**: `#000000` puro; contenedor `position: relative` para footer anclado
+- **Logo**: `client/public/logo.png` (logo circular Yebram's), `width/height: 140px`, animación `@keyframes logoGlow` — alterna `drop-shadow(0 0 0px #f5c518)` → `drop-shadow(0 0 25px #f5c518)` cada 1.8s
+- **Banner horario**: estático sin animación (solo el logo parpadea)
+- **Jerarquía tipográfica**:
+  - "Estamos Cerrados": `#f5c518`, `2rem`, `weight 900`
+  - "Vuelve pronto,": blanco `#ffffff`, `1.3rem`, `weight 700`, `marginTop: 2rem`
+  - "te esperamos con un Menú Super Crujiente 🍗": `#f5c518`, `1rem`, `weight 700`, `marginTop: 0.5rem`
+  - "Volvemos a las X a.m.": hora formateada por `formatHour()`, `marginTop: 2rem`
+- **Footer anclado** (`position: absolute, bottom: 1.5rem`): "Desarrollado por [Luis](https://wa.me/584165434760?text=Hola!%20Estoy%20interesado%20en%20un%20sistema%20como%20este%20para%20mi%20Negocio.)" — dorado sin subrayado, solo el nombre clickeable
+- **MenuPage footer (menú abierto)**: eliminada línea "⚡ Potenciado por tecnología"
 
-- [ ] **Push PAYMENT_REJECTED con motivo**: la push notification de rechazo debe incluir el `cancelReason` en el body del mensaje. Actualmente envía texto genérico "Tu pago no fue verificado" — cambiar en `dashboard.routes.ts` a "❌ Pago rechazado: {motivo}" si hay motivo, o mensaje genérico si no.
+### ✅ FEATURES.md
 
-- [ ] **Notificación rechazo inmediata en PWA sin F5**: verificar que el socket `order:updated` llega al cliente en `OrderTrackingPage` cuando el admin rechaza el pago. El `PAYMENT_REJECTED` debe mostrarse instantáneamente. Si no llega, revisar que `serializeOrder()` se aplica en el `emitOrderUpdated` del handler de rechazo en `dashboard.routes.ts`.
+- **Feature 26** agregada: animación barra de progreso `OrderTrackingPage` — glow pulsante por color de estado (dorado/naranja/verde)
+- **Feature 27** referenciada en pendientes: impresión ticket cocina (pendiente modelo impresora del dueño)
 
-- [ ] **Costo delivery por zonas (cerca / medio / lejos)**: en Checkout, el cliente selecciona su zona y el costo de delivery se suma al total del pedido. Implementar con config en DB (tabla `SystemConfig` clave `DELIVERY_ZONES` = JSON `[{nombre, costo}]`). El costo se calcula en el total, **no** en el subtotal de cada ítem. El dashboard muestra la zona en la OrderCard.
+## Pendientes próxima sesión
 
-- [ ] **Avisar al motorizado cuando pedido pasa a IN_KITCHEN**: al confirmar pago (→ IN_KITCHEN automáticamente), si la orden ya tiene `driverPhone` asignado, enviar mensaje WhatsApp/push al motorizado: "📦 Pedido #XXXX ya está en cocina, prepárate para recogerlo". Actualmente el motorizado no sabe cuándo el pedido entra a cocina.
+### 🔴 Alta prioridad
 
-- [ ] **Ticket WhatsApp con link /driver/:id**: al pasar a AWAITING_DRIVER_ASSIGNMENT o al asignar motorizado, enviar al número del restaurante (admin) un mensaje WhatsApp prellenado con el ticket completo: `#pedido, cliente, ítems, dirección, referencia, link /driver/:id`. La encargada reenvía este mensaje al motorizado. El link /driver/:id ya funciona — solo falta el mensaje formateado hacia el admin.
+- [ ] **Push PAYMENT_REJECTED con motivo**: incluir `cancelReason` en el body de la push. Cambiar en `dashboard.routes.ts` a "❌ Pago rechazado: {motivo}" si hay motivo, genérico si no.
+- [ ] **Costo delivery por zonas**: selector zona en Checkout (cerca/medio/lejos), clave `DELIVERY_ZONES` = JSON `[{nombre, costo}]`. Costo suma al total, no al subtotal. Dashboard muestra zona en OrderCard.
+- [ ] **Avisar motorizado al entrar a IN_KITCHEN**: si orden ya tiene `driverPhone`, enviar push/WA "📦 Pedido #XXXX en cocina, prepárate".
+- [ ] **Ticket WhatsApp con link /driver/:id**: al asignar motorizado, mensaje prellenado al admin con #pedido, cliente, ítems, dirección, referencia y link `/driver/:id`.
+- [ ] **ConfirmPage — énfasis nombre + ítems + botón volver desde tracking**: mejora UX post-pedido.
 
-### 🟡 Media prioridad — features en curso
+### 🟡 Media prioridad
 
-- [ ] **Feature 9 — GPS cliente en Checkout**: botón "📍 Usar mi ubicación" en Checkout. Las coordenadas se guardan en la orden. Dashboard muestra link maps.google.com. QR motorizado incluye link de navegación. Ver spec en FEATURES.md.
+- [ ] **Feature 26 — Animación barra de progreso `OrderTrackingPage`**: paso activo pulsa con glow por color de estado. Ver spec en FEATURES.md.
+- [ ] **Feature 9 — GPS en Checkout**: botón "📍 Usar mi ubicación", coordenadas en orden, link maps en dashboard y QR motorizado.
+- [ ] **Feature 10 — Stories de promos**: carrusel entre Hero y tabs. Publicación desde dashboard.
+- [ ] **Feature 11 — Módulo de Caja**: `CashRegisterShift`, endpoints `/api/cash/shifts/...`, SheetJS export.
 
-- [ ] **Feature 10 — Stories de promos**: carrusel de fotos entre Hero y tabs del menú. Publicación desde sección Promos del dashboard. Ver spec en FEATURES.md.
+### 🟢 Baja prioridad
 
-- [ ] **Feature 11 — Módulo de Caja**: nueva pestaña dashboard. Ver spec completo en FEATURES.md.
-  - Migración Prisma `CashRegisterShift`
-  - `src/api/cash.routes.ts`
-  - `dashboard/src/pages/CashRegisterPage.tsx`
-  - SheetJS `npm install xlsx` + export a plantilla del restaurante
-
-### 🟢 Baja prioridad — mejoras y deuda técnica
-
-- [ ] **Feature 7 — Multi-pedido motorizado**: pendiente feedback del dueño sobre si lo usarán. Ver spec en FEATURES.md.
-
-- [ ] **Feature 8 — Saludo personalizado LLM en hero PWA**: `GET /api/public/greeting/:phone` con cache Redis 1h. Ver spec en FEATURES.md.
-
-- [ ] **Menú — categoría Bebidas**: el usuario enviará la imagen. Agregar categoría y cargar en seed/DB cuando llegue el material.
-
-- [ ] **Deuda técnica — KitchenPage socket**: migrar a singleton compartido en lugar de crear conexión propia en cada montaje del componente.
+- [ ] **Feature 16 — Motor de Retención RFM**: segmentación clientes por frecuencia/valor.
+- [ ] **Feature 17 — QR de Mesa**: pedido desde mesa con QR.
+- [ ] **Feature 27 — Impresión ticket cocina**: pendiente modelo de impresora del dueño.
+- [ ] **Menú — categoría Bebidas**: pendiente foto del dueño.
+- [ ] **Deuda técnica — KitchenPage socket**: migrar a singleton compartido.
 
 ### 🔍 Investigar
 
-- [ ] **Bug #0018**: pedido PICKUP+referencia saltó paso IN_KITCHEN en barra de progreso. Query diagnóstico en Railway:
+- [ ] **Bug #0018**: PICKUP+referencia saltó IN_KITCHEN en barra de progreso.
   ```sql
   SELECT id, "orderNumber", status, "deliveryType", "paymentMethod", "paymentReference"
   FROM orders WHERE "orderNumber" = 18
   ```
+- [ ] **Consultar dueño**: modelo de impresora para Feature 27.
+
+## Próxima sesión
+Arrancar con **Feature 17 (PWA Mesonero)** o **Feature 11 (Módulo de Caja)** según prioridad del dueño. Pendiente confirmar cuál primero.
 
 ## Notas de deploy (Railway)
 

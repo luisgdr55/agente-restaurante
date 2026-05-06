@@ -206,6 +206,45 @@ model CashRegisterShift {
 - `PUT /api/cash/template` — guarda la plantilla base64 en BD o storage
 - `GET /api/cash/template` — descarga la plantilla para mapeo
 
+### Agrupación automática por método de pago
+Al cerrar un turno, el sistema agrupa todos los pedidos del período por método:
+
+| Método | Campo en Order | Incluye |
+|---|---|---|
+| Pago Móvil | `paymentMethod === 'PAGO_MOVIL'` | Pedidos `PAYMENT_CONFIRMED` o posteriores |
+| Efectivo | `paymentMethod === 'CASH_ON_DELIVERY'` | Solo pedidos `DELIVERED` |
+| POS / Biopago | `paymentMethod === 'POS'` | Pedidos `PAYMENT_CONFIRMED` o posteriores |
+
+Por cada grupo: **cantidad de pedidos + suma total en Bs + suma total en USD**.
+
+### Reporte de referencia al cierre
+Generado automáticamente al cerrar turno — campos para comparar con el sistema externo del restaurante:
+
+```
+TURNO AM — Cajera: María — 28/05/2026
+───────────────────────────────────────
+Pago Móvil:    12 pedidos | Bs 1.240,00 | $34.25
+Efectivo Bs:    4 pedidos | Bs   380,00 | $10.51
+Efectivo USD:   2 pedidos |              $12.00
+Tarjetas POS:   3 pedidos | Bs   620,00 | $17.13
+───────────────────────────────────────
+Total nuestro sistema:   Bs 2.640,00 | $73.89
+Total Sinclair (cajera): _____________
+Gran total consolidado:  _____________
+```
+
+"Total Sinclair" y "Gran total consolidado" se ingresan manualmente por la cajera al cierre.
+
+### Envío automático al dueño al cerrar turno
+Al presionar "Cerrar turno":
+1. Genera link `wa.me/{ADMIN_PHONE}` con el resumen prellenado — la cajera solo toca "Enviar"
+2. Envía push notification al dashboard del dueño: "Turno AM cerrado — ventas $73.89 | Bs 2.640,00"
+
+El número del dueño se lee de `getConfig('ADMIN_PHONE')`.
+
+### Turnos por día
+Exactamente dos turnos por día (AM y PM). Ambas cajeras operan en el mismo sistema; el historial identifica cada turno por cajera + tipo (AM/PM) + fecha.
+
 ### Stack
 - Frontend: nueva pestaña "Caja" en NavBar dashboard
 - `CashRegisterPage.tsx` — vista principal con estado del turno activo + historial
@@ -336,18 +375,75 @@ model RetentionRule {
 
 ---
 
-## FEATURE 17 — QR de Mesa
+## FEATURE 17 — PWA Mesonero
 
-Parámetro `?mesa=X` en la URL de la PWA activa modo local:
-- Oculta campo de dirección en Checkout (no aplica delivery)
-- Muestra número de mesa en la `ConfirmPage` y en la card del dashboard
-- El pedido se crea con `deliveryType: 'PICKUP'` y `tableNumber: X` en metadata
-- Puntos del club de fidelidad se acumulan automáticamente
-- El dashboard muestra la mesa en la card de la orden para que el mesero sepa a quién llevar
-- El menú QR se imprime una vez y el link nunca cambia: `https://yebramspedidos.up.railway.app/?mesa=3`
+Tercera PWA (o modo especial de la PWA cliente) para tablet del mesonero en el local.
+Interfaz optimizada para tomar pedidos de mesa rápidamente sin salir del restaurante.
 
-**Implementación mínima**: agregar `tableNumber?: string` a `CreateOrderInput` y `Order`,
-leer `?mesa` en `MenuPage`, pasarlo en el body del pedido, mostrarlo en dashboard.
+### Principios de diseño
+- **Sin delivery**: sin campos de dirección ni opciones de envío — pedidos locales únicamente
+- **Sin comprobante digital**: el pago se gestiona en el momento en mesa (no se sube foto)
+- **Mesa obligatoria**: campo de número de mesa siempre visible y requerido
+- **Tablet-first**: botones grandes, scroll mínimo, flujo de 3 pasos máximo
+- **Pedidos al mismo dashboard y cocina**: sin infraestructura paralela
+
+### Flujo del mesonero
+```
+Tablet carga PWA mesonero → selecciona mesa → elige ítems → selecciona método de pago
+  → confirma pedido → badge "🍽️ MESA X" en dashboard y cocina
+  → cocina prepara y marca READY → mesonero lleva el pedido
+  → mesonero registra cobro → pedido DELIVERED
+```
+
+### Diferenciación visual en dashboard y cocina
+Los pedidos del mesonero llevan badge claro diferenciado:
+- `🍽️ MESA 4` — pedido de mesa (esta feature)
+- `🛵 DELIVERY` — pedido con entrega a domicilio
+- `🏪 PICKUP` — pedido para retirar en local (sin mesa)
+
+La `KitchenPage` ve todos los pedidos mezclados en el mismo flujo — sin cambios de infraestructura.
+
+### Métodos de pago en mesa
+
+#### Efectivo
+- El mesonero selecciona "Efectivo"
+- El pedido queda pendiente de cobro — pago al final en caja
+- El módulo de Caja (Feature 11) acumula estos pedidos en la columna "Efectivo"
+
+#### Pago Móvil en mesa
+- El mesonero selecciona "Pago Móvil"
+- La PWA muestra **QR grande y legible** generado a partir de la config del restaurante:
+  banco, teléfono, RIF (leídos de `getConfig('PAGO_MOVIL_*')`)
+- El cliente escanea el QR con su app bancaria directamente desde la tablet del mesonero
+- El cliente realiza el pago; el mesonero confirma ingresando el número de referencia
+  o capturando el comprobante con la cámara de la tablet
+- El pedido queda como `PAYMENT_UPLOADED` — el admin/cajera verifica igual que los pedidos digitales
+
+#### Punto de Venta / Biopago (POS)
+- El mesonero selecciona "POS"
+- El pedido se marca para cobro con datáfono
+- El dashboard muestra "POS" como método de pago en la card de la orden
+
+### Visibilidad del método en dashboard
+La card de cada pedido muestra claramente el método elegido:
+`💳 POS` / `📱 Pago Móvil` / `💵 Efectivo`
+La cajera puede ver totales separados por método en el módulo de Caja (Feature 11),
+incluyendo los pedidos de mesa.
+
+### Implementación técnica
+- **Opción A (recomendada)**: misma PWA cliente con parámetro `?mesonero=1&mesa=X` que activa modo mesonero
+  - Oculta sección delivery, oculta upload de comprobante, fuerza campo mesa
+  - URL estática por mesa: `https://yebramspedidos.up.railway.app/?mesonero=1&mesa=3`
+- **Opción B**: sub-dominio o ruta separada `/mesonero` — mayor aislamiento, más build complexity
+
+### Modelo de datos
+- `tableNumber?: string` en `CreateOrderInput` y `Order` (campo nuevo Prisma)
+- `deliveryType: 'TABLE'` nuevo valor en enum, o reutilizar `'PICKUP'` con `tableNumber` presente
+- Badge en `OrderCard.tsx` y `KitchenPage.tsx`: condicional por `tableNumber`
+
+### QR de mesa (implementación mínima inicial)
+El link de la PWA en modo mesonero se imprime una vez como QR por mesa y no cambia:
+`https://yebramspedidos.up.railway.app/?mesonero=1&mesa=3`
 
 ---
 
@@ -568,5 +664,51 @@ Mejora visual de la barra de progreso de 5 fases para hacerla más legible y lla
 | PAYMENT_CONFIRMED | `rgba(245,197,24,0.6)` dorado |
 | IN_KITCHEN | `rgba(249,115,22,0.6)` naranja |
 | READY / OUT_FOR_DELIVERY / DELIVERED | `rgba(34,197,94,0.6)` verde |
+
+---
+
+## FEATURE 27 — Ticket impresión cocina
+
+> ⚠️ **Pendiente confirmar modelo de impresora** con el dueño del restaurante antes de implementar.
+
+Impresión automática de ticket en cocina al confirmar pago. Formato térmico 80mm.
+Contenido: número de pedido, ítems con cantidad, notas especiales, tipo (DELIVERY/PICKUP/MESA X), hora.
+Stack candidato: `node-thermal-printer` o ESC/POS directo según modelo de impresora.
+
+---
+
+## FEATURE 28 — Modo Offline / Red Local
+
+Dos escenarios de funcionamiento sin internet externo.
+
+### Escenario A — Mesonero sin internet en tablet
+**Service Worker + IndexedDB** para pedidos locales:
+- El mesonero toma pedidos en la tablet aunque no haya señal
+- Los pedidos se guardan en `IndexedDB` localmente
+- Al recuperar conexión WiFi → Background Sync API envía los pedidos al backend
+- El menú se sirve desde Service Worker cache (actualizado al abrir la app con conexión)
+
+### Escenario B — Restaurante sin internet externo
+**Backend local en PC del restaurante**:
+- El mismo código de Railway corre en Node.js local (ningún cambio de código — solo `.env` diferente)
+- Tablet del mesonero → WiFi interna → backend local → dashboard cocina en la misma red
+- PostgreSQL y Redis corren en Docker en la PC del restaurante
+- **Sin acceso a Railway ni internet externo**: todo funciona en intranet
+
+### Canal externo como fallback (clientes con datos móviles)
+- El cliente con internet puede seguir pidiendo a Railway normalmente
+- Si el dashboard del restaurante no tiene internet: push notification al teléfono del admin
+  como fallback (push web funciona siempre que el admin tenga datos en su celular)
+- El admin ve el pedido en la PWA de tracking desde su celular con datos
+
+### Mismo código deployable en ambos entornos
+- `docker-compose.yml` ya existente cubre el entorno local completo (postgres + redis + app)
+- Solo requiere cambiar variables de entorno: `DATABASE_URL`, `REDIS_URL`, URLs públicas → `localhost`
+- Sin bifurcaciones de código — un solo codebase para Railway y local
+
+### Stack
+- Service Worker: `workbox` o vanilla SW con `BackgroundSyncPlugin`
+- IndexedDB: `idb` (wrapper liviano) para almacenar pedidos pendientes
+- Backend local: instrucciones de setup en README para instalar en PC Windows/Linux del restaurante
 
 ---
