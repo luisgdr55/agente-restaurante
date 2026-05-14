@@ -122,6 +122,8 @@ export default function MenuPage() {
   const [addingId, setAddingId] = useState<string | null>(null)
   const [countBouncing, setCountBouncing] = useState(false)
   const [unavailableWarnings, setUnavailableWarnings] = useState<string[]>([])
+  const [activeOrder, setActiveOrder] = useState<{ id: string; orderNumber: number; status: string; cancelReason: string | null } | null>(null)
+  const [orderBannerDismissed, setOrderBannerDismissed] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(0)
   const { items, add, remove, clear, total, count } = useCart()
@@ -138,6 +140,16 @@ export default function MenuPage() {
       .finally(() => setLoading(false))
     if ('Notification' in window) {
       setNotifPermission(Notification.permission)
+    }
+    const stored = localStorage.getItem('yebrams_active_order')
+    if (stored) {
+      try {
+        const { id } = JSON.parse(stored) as { id: string }
+        const ALERT_STATUSES = ['PAYMENT_REJECTED', 'PAYMENT_CONFIRMED', 'IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY']
+        publicApi.getOrderTracking(id).then(order => {
+          if (ALERT_STATUSES.includes(order.status)) setActiveOrder(order)
+        }).catch(() => undefined)
+      } catch { /* localStorage corrupto — ignorar */ }
     }
   }, [])
 
@@ -170,6 +182,14 @@ export default function MenuPage() {
           return [...new Set([...prev, ...newWarnings])]
         })
       }).catch(() => undefined)
+    })
+    socket.on('order:updated', (updated: { id: string; status: string; cancelReason?: string | null }) => {
+      const ALERT_STATUSES = ['PAYMENT_REJECTED', 'PAYMENT_CONFIRMED', 'IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY']
+      setActiveOrder(prev => {
+        if (!prev || prev.id !== updated.id) return prev
+        if (!ALERT_STATUSES.includes(updated.status)) return null
+        return { ...prev, status: updated.status, cancelReason: updated.cancelReason ?? null }
+      })
     })
     return () => { socket.disconnect() }
   }, [items])
@@ -317,6 +337,65 @@ export default function MenuPage() {
   return (
     <Layout cartCount={count} onCartClick={() => setCartOpen(true)}>
       <style>{MENU_STYLES}</style>
+
+      {/* ── Banner pedido rechazado — sticky, no se puede cerrar ── */}
+      {activeOrder?.status === 'PAYMENT_REJECTED' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(135deg, #7f1d1d, #991b1b)',
+          borderBottom: '2px solid #ef4444',
+          padding: '0.85rem 1.25rem',
+          display: 'flex', flexDirection: 'column', gap: '0.35rem',
+          boxShadow: '0 4px 24px rgba(239,68,68,0.5)',
+        }}>
+          <p style={{ fontWeight: 800, fontSize: '1rem', color: '#fef2f2', margin: 0 }}>
+            ⚠️ Tu pedido #{String(activeOrder.orderNumber).padStart(4, '0')} necesita atención
+          </p>
+          {activeOrder.cancelReason && (
+            <p style={{ fontSize: '0.82rem', color: '#fca5a5', margin: 0 }}>
+              Motivo: {activeOrder.cancelReason}
+            </p>
+          )}
+          <button
+            onClick={() => navigate(`/order/${activeOrder.id}`)}
+            style={{
+              alignSelf: 'flex-start', marginTop: '0.25rem',
+              padding: '0.4rem 1rem', background: '#ef4444', color: '#fff',
+              borderRadius: 8, fontWeight: 700, fontSize: '0.88rem', border: 'none',
+            }}>
+            Ver mi pedido →
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner pedido en proceso — dorado, se puede cerrar ── */}
+      {activeOrder && activeOrder.status !== 'PAYMENT_REJECTED' && !orderBannerDismissed && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'rgba(20,18,0,0.92)',
+          borderBottom: '1.5px solid rgba(245,197,24,0.4)',
+          padding: '0.65rem 1.25rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <button
+            onClick={() => navigate(`/order/${activeOrder.id}`)}
+            style={{
+              background: 'none', border: 'none', color: '#f5c518',
+              fontWeight: 700, fontSize: '0.9rem', textAlign: 'left', flex: 1, padding: 0,
+            }}>
+            📦 Tu pedido #{String(activeOrder.orderNumber).padStart(4, '0')} está en proceso → Ver estado
+          </button>
+          <button
+            onClick={() => setOrderBannerDismissed(true)}
+            style={{
+              background: 'none', border: 'none', color: '#6b7280',
+              fontSize: '1.3rem', lineHeight: 1, flexShrink: 0, padding: '0 0.25rem',
+            }}>
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ── Hero — ocupa el 100% del viewport ── */}
       <div style={{
