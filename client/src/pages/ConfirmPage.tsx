@@ -181,17 +181,17 @@ export default function ConfirmPage() {
       {pollStatus === 'PAYMENT_REJECTED' && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9999,
-          background: '#111111',
+          background: '#1a0a00',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', padding: '2rem 1.25rem', textAlign: 'center',
         }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
-            background: 'rgba(239,68,68,0.15)', border: '2px solid #ef4444',
+            background: 'rgba(245,158,11,0.15)', border: '2px solid #f59e0b',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '2rem', marginBottom: '1.25rem',
           }}>⚠️</div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.5rem' }}>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b', marginBottom: '0.5rem' }}>
             Necesitamos verificar tu pago
           </h1>
           <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '1rem', maxWidth: 340 }}>
@@ -199,11 +199,11 @@ export default function ConfirmPage() {
           </p>
           {pollCancelReason && (
             <div style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+              background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
               borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', width: '100%', maxWidth: 380,
             }}>
-              <p style={{ fontSize: '0.85rem', color: '#fca5a5' }}>
-                <strong style={{ color: '#f87171' }}>Motivo:</strong> {pollCancelReason}
+              <p style={{ fontSize: '0.85rem', color: '#fcd34d' }}>
+                <strong style={{ color: '#f59e0b' }}>Motivo:</strong> {pollCancelReason}
               </p>
             </div>
           )}
@@ -211,9 +211,9 @@ export default function ConfirmPage() {
             onClick={() => navigate(`/order/${orderId}`)}
             style={{
               width: '100%', maxWidth: 380, padding: '1rem',
-              background: '#ef4444', color: '#fff',
+              background: '#f59e0b', color: '#000',
               borderRadius: 12, fontWeight: 800, fontSize: '1.05rem', border: 'none',
-              boxShadow: '0 4px 20px rgba(239,68,68,0.4)',
+              boxShadow: '0 4px 20px rgba(245,158,11,0.4)',
             }}>
             Resolver ahora →
           </button>
