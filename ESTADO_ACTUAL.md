@@ -1,5 +1,5 @@
 # Estado Actual del Sistema
-Última actualización: 2026-05-04
+Última actualización: 2026-05-05
 
 ## Infraestructura deployada
 | Servicio | URL | Estado |
@@ -565,8 +565,53 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
   ```
 - [ ] **Consultar dueño**: modelo de impresora para Feature 27.
 
-## Próxima sesión
-Arrancar con **Feature 17 (PWA Mesonero)** o **Feature 11 (Módulo de Caja)** según prioridad del dueño. Pendiente confirmar cuál primero.
+## Sesión 2026-05-05 — UX post-pago + notificaciones
+
+### Push y notificaciones
+- `push-service.ts`: body del push `PAYMENT_REJECTED` incluye motivo de rechazo (`reason`) cuando el admin lo ingresa
+- `client/public/sw.js`: icon y badge de notificaciones push cambiados a `https://yebramspedidos.up.railway.app/logo.png`
+
+### Backend tracking
+- `GET /api/public/orders/:id/tracking`: campo `cancelReason` agregado al `select` de Prisma y expuesto en el response
+- `TrackingOrder` (client api.ts): campo `cancelReason: string | null` agregado a la interfaz
+
+### OrderTrackingPage
+- Card `PAYMENT_REJECTED`: muestra `order.cancelReason` en pill ámbar si existe
+
+### Dashboard OrderCard
+- Input motivo de rechazo reemplazado por `<textarea rows={3}` ancho completo con placeholder descriptivo
+
+### MenuPage — banner pedido activo
+- Al montar: lee `yebrams_active_order` del localStorage → fetch a `/api/public/orders/:id/tracking`
+- Banner rojo fijo (no closeable) si `PAYMENT_REJECTED`: muestra motivo + botón "Ver mi pedido →"
+- Banner dorado closeable si `PAYMENT_CONFIRMED / IN_KITCHEN / READY / OUT_FOR_DELIVERY`
+- Socket `order:updated` actualiza los banners en tiempo real
+
+### ConfirmPage — polling en tiempo real
+- `setInterval` cada 10s a `/api/public/orders/:id/tracking` con guards de integridad (`order.orderNumber`)
+- `PAYMENT_REJECTED` → overlay ámbar `position: fixed` con fondo `#1a0a00`, título/botón en `#f59e0b`, motivo si existe, botón "Resolver ahora →" navega a `/order/:id`
+- `PAYMENT_CONFIRMED` → banner verde sticky con countdown 3s → auto-navega a tracking
+- `IN_KITCHEN / READY / OUT_FOR_DELIVERY` → `navigate('/order/:id', { replace: true })` directo
+- `CANCELLED` → card gris + botón dorado "🍗 Hacer un nuevo pedido" que limpia localStorage y navega a `/init`
+
+## Próxima sesión — pendientes en orden de prioridad
+
+### 🔴 Alta prioridad
+- [ ] **Costo delivery por zonas** — DELIVERY_ZONES JSON config, selector en Checkout
+- [ ] **Avisar motorizado cuando pedido entra a IN_KITCHEN** — si `driverPhone` asignado, enviar notificación
+- [ ] **Ticket WhatsApp al restaurante** con link `/driver/:id` cuando se asigna motorizado
+- [ ] **ConfirmPage: botón volver desde tracking** — link de regreso al ConfirmPage
+
+### 🟡 Media prioridad
+- [ ] **Optimizar diseño Checkout** — textos más grandes y legibles para clientes con dificultad visual
+- [ ] **Feature 26** — animación barra de progreso OrderTrackingPage (glow pulsante por color de estado)
+- [ ] **Feature 9** — GPS en Checkout (coordenadas guardadas, link Google Maps en dashboard)
+- [ ] **Feature 10** — Stories de promos (carrusel entre Hero y tabs)
+- [ ] **Feature 11** — Módulo de Caja
+- [ ] **Feature 17** — PWA Mesonero
+
+### 🟢 Baja prioridad
+- [ ] Features 16, 18, 20–28 según roadmap FEATURES.md
 
 ## Notas de deploy (Railway)
 
