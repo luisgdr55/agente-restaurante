@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import NotificationModal, { hasBeenAsked } from '../components/NotificationModal'
 import { saveActiveOrder } from './OrderTrackingPage'
+import { publicApi } from '../api/api'
 
 interface ConfirmState {
   orderNumber: number
@@ -43,6 +44,9 @@ export default function ConfirmPage() {
     () => (location.state as ConfirmState | null) ?? loadConfirmData()
   )
   const [showNotifModal, setShowNotifModal] = useState(false)
+  const [pollStatus, setPollStatus] = useState<string | null>(null)
+  const [pollCancelReason, setPollCancelReason] = useState<string | null>(null)
+  const [confirmedCountdown, setConfirmedCountdown] = useState<number | null>(null)
 
   useEffect(() => {
     if (!confirmState?.orderNumber) return
@@ -53,6 +57,45 @@ export default function ConfirmPage() {
     return () => clearTimeout(t)
   }, [confirmState])
 
+  // Polling cada 10s — detiene cuando llega a estado terminal
+  useEffect(() => {
+    const id = confirmState?.orderId
+    if (!id) return
+    const AUTO_NAV = ['IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY']
+    const TERMINAL = new Set(['PAYMENT_REJECTED', 'IN_KITCHEN', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'])
+    let active = true
+    const poll = async () => {
+      try {
+        const order = await publicApi.getOrderTracking(id)
+        if (!active) return
+        setPollStatus(order.status)
+        setPollCancelReason(order.cancelReason)
+        if (AUTO_NAV.includes(order.status)) navigate(`/order/${id}`, { replace: true })
+        if (TERMINAL.has(order.status)) clearInterval(interval)
+      } catch { /* ignorar errores de red */ }
+    }
+    const interval = setInterval(() => { void poll() }, 10000)
+    return () => { active = false; clearInterval(interval) }
+  }, [confirmState?.orderId, navigate])
+
+  // Countdown de 3s tras PAYMENT_CONFIRMED → auto-navega a tracking
+  useEffect(() => {
+    if (pollStatus !== 'PAYMENT_CONFIRMED' || !confirmState?.orderId) return
+    const id = confirmState.orderId
+    setConfirmedCountdown(3)
+    const tick = setInterval(() => {
+      setConfirmedCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(tick)
+          navigate(`/order/${id}`, { replace: true })
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [pollStatus, confirmState?.orderId, navigate])
+
   // If navigated directly without state or stored data, redirect home
   if (!confirmState?.orderNumber) {
     navigate('/', { replace: true })
@@ -60,6 +103,52 @@ export default function ConfirmPage() {
   }
 
   const { orderNumber, orderId, queued, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = confirmState
+
+  // Pantalla de rechazo — reemplaza el contenido completo
+  if (pollStatus === 'PAYMENT_REJECTED') {
+    return (
+      <Layout>
+        <div style={{
+          maxWidth: 480, margin: '0 auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', minHeight: '80vh', padding: '2rem 1.25rem', textAlign: 'center',
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: 'rgba(239,68,68,0.15)', border: '2px solid #ef4444',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '2rem', marginBottom: '1.25rem',
+          }}>⚠️</div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.5rem' }}>
+            Necesitamos verificar tu pago
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+            Tu comprobante no pudo ser verificado. Puedes subir uno nuevo desde la pantalla de seguimiento.
+          </p>
+          {pollCancelReason && (
+            <div style={{
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', width: '100%',
+            }}>
+              <p style={{ fontSize: '0.85rem', color: '#fca5a5' }}>
+                <strong>Motivo:</strong> {pollCancelReason}
+              </p>
+            </div>
+          )}
+          <button
+            onClick={() => navigate(`/order/${orderId}`)}
+            style={{
+              width: '100%', padding: '1rem',
+              background: '#ef4444', color: '#fff',
+              borderRadius: 12, fontWeight: 800, fontSize: '1.05rem',
+              boxShadow: '0 4px 20px rgba(239,68,68,0.4)',
+            }}>
+            Resolver ahora →
+          </button>
+        </div>
+      </Layout>
+    )
+  }
 
   // Persist active order for auto-redirect on next app open
   useEffect(() => {
@@ -99,6 +188,37 @@ export default function ConfirmPage() {
 
   return (
     <Layout>
+      {/* ── Banner pago confirmado — auto-navega en 3s ── */}
+      {pollStatus === 'PAYMENT_CONFIRMED' && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 100,
+          background: 'linear-gradient(135deg, #14532d, #166534)',
+          borderBottom: '2px solid #22c55e',
+          padding: '0.9rem 1.25rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+          boxShadow: '0 4px 20px rgba(34,197,94,0.4)',
+        }}>
+          <div>
+            <p style={{ fontWeight: 800, color: '#f0fdf4', fontSize: '0.95rem', marginBottom: '0.15rem' }}>
+              ✅ ¡Pago confirmado! Tu pedido está en cocina
+            </p>
+            <p style={{ fontSize: '0.78rem', color: '#86efac' }}>
+              Redirigiendo en {confirmedCountdown ?? 3}s...
+            </p>
+          </div>
+          <button
+            onClick={() => navigate(`/order/${orderId}`, { replace: true })}
+            style={{
+              flexShrink: 0, padding: '0.45rem 0.9rem',
+              background: '#22c55e', color: '#fff',
+              borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', border: 'none',
+              whiteSpace: 'nowrap',
+            }}>
+            Seguir mi pedido →
+          </button>
+        </div>
+      )}
+
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem', textAlign: 'center' }}>
 
         {/* ── Icono éxito ── */}
@@ -166,6 +286,25 @@ export default function ConfirmPage() {
               </p>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
                 Lo procesaremos en el orden en que llegó. Te notificaremos cuando sea confirmado. ¡Gracias por tu paciencia! 🙏
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Pedido cancelado ── */}
+        {pollStatus === 'CANCELLED' && (
+          <div style={{
+            background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)',
+            borderRadius: 14, padding: '1rem 1.25rem', marginBottom: '1rem',
+            display: 'flex', alignItems: 'flex-start', gap: '0.75rem', textAlign: 'left',
+          }}>
+            <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>❌</span>
+            <div>
+              <p style={{ fontWeight: 700, color: '#9ca3af', marginBottom: '0.25rem', fontSize: '0.95rem' }}>
+                Pedido cancelado
+              </p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                Este pedido fue cancelado. Puedes hacer uno nuevo cuando quieras.
               </p>
             </div>
           </div>
