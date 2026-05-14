@@ -156,6 +156,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       try {
         const extraData: Record<string, unknown> = { status };
         if (status === 'CANCELLED') { extraData.cancelledAt = new Date(); extraData.cancelReason = reason ?? 'Cancelado desde dashboard'; }
+        if (status === 'PAYMENT_REJECTED' && reason) { extraData.cancelReason = reason; }
         if (status === 'DELIVERED') extraData.deliveredAt = new Date();
         // READY: registrar completedAt (cierre de métricas en cocina)
         if (status === 'READY') extraData.completedAt = new Date();
@@ -184,7 +185,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
               break;
             case 'PAYMENT_REJECTED':
               logger.info({ orderId: id, customerPhone }, '[push] firing PAYMENT_REJECTED');
-              await sendPushToPhone(customerPhone, '❌ Pago no verificado', 'Tu pago no fue verificado. Toca para ver opciones', `/order/${order.id}`);
+              await sendPushToPhone(
+                customerPhone,
+                '❌ Pago no verificado',
+                reason ? `Motivo: ${reason}. Toca para subir otro comprobante` : 'Tu pago no fue verificado. Toca para ver opciones',
+                `/order/${order.id}`,
+              );
               break;
             case 'IN_KITCHEN': {
               const etaPush = parseInt((await getConfig('DELIVERY_ETA_MINUTES')) ?? '20', 10);
