@@ -616,12 +616,12 @@ export default function OrderCard({ order, onRefresh, isQueueMode }: OrderCardPr
       {rejectOpen && (
         <div style={{ marginTop: '0.75rem', background: 'var(--surface2)', borderRadius: 10, padding: '0.75rem' }}>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Motivo del rechazo (opcional):</div>
-          <input
-            type="text"
+          <textarea
+            rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Ej: monto incorrecto..."
-            style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' }}
+            placeholder="Ej: monto incorrecto, referencia ilegible, comprobante de otro banco..."
+            style={{ width: '100%', padding: '0.5rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
             <button className="btn btn-sm btn-danger btn-micro btn-glow-reject"
