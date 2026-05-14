@@ -68,13 +68,15 @@ export default function ConfirmPage() {
       try {
         const order = await publicApi.getOrderTracking(id)
         if (!active) return
+        console.log('[poll] status recibido:', order.status, '| cancelReason:', order.cancelReason)
         setPollStatus(order.status)
         setPollCancelReason(order.cancelReason)
         if (AUTO_NAV.includes(order.status)) navigate(`/order/${id}`, { replace: true })
         if (TERMINAL.has(order.status)) clearInterval(interval)
-      } catch { /* ignorar errores de red */ }
+      } catch (err) {
+        console.error('[poll] error en fetch:', err)
+      }
     }
-    alert(`[ConfirmPage] orderId al montar: ${id}`)
     const interval = setInterval(() => { void poll() }, 10000)
     return () => { active = false; clearInterval(interval) }
   }, [confirmState?.orderId, navigate])
