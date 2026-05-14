@@ -620,7 +620,7 @@ export default function OrderCard({ order, onRefresh, isQueueMode }: OrderCardPr
             rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Ej: monto incorrecto, referencia ilegible, comprobante de otro banco..."
+            placeholder="Escribe el motivo del rechazo (ej: monto incorrecto, referencia no encontrada...)"
             style={{ width: '100%', padding: '0.5rem 0.6rem', borderRadius: 8, border: '1px solid var(--surface2)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
