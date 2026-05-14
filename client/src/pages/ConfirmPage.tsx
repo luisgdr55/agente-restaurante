@@ -68,7 +68,8 @@ export default function ConfirmPage() {
       try {
         const order = await publicApi.getOrderTracking(id)
         if (!active) return
-        console.log('[poll] status recibido:', order.status, '| cancelReason:', order.cancelReason)
+        console.log('[poll] status recibido:', order.status, '| orderNumber:', order.orderNumber, '| cancelReason:', order.cancelReason)
+        if (!order.orderNumber) return
         setPollStatus(order.status)
         setPollCancelReason(order.cancelReason)
         if (AUTO_NAV.includes(order.status)) navigate(`/order/${id}`, { replace: true })
@@ -108,7 +109,7 @@ export default function ConfirmPage() {
   const { orderNumber, orderId, queued, adminPhone, customerName, phone, total, rate, deliveryType, address, cart, pagoMovilBank, pagoMovilPhone, pagoMovilHolder, pagoMovilRif, vapidPublicKey } = confirmState
 
   // Pantalla de rechazo — reemplaza el contenido completo
-  if (pollStatus === 'PAYMENT_REJECTED') {
+  if (pollStatus === 'PAYMENT_REJECTED' && orderNumber) {
     return (
       <Layout>
         <div style={{
