@@ -74,7 +74,8 @@ export default function ConfirmPage() {
         if (TERMINAL.has(order.status)) clearInterval(interval)
       } catch { /* ignorar errores de red */ }
     }
-    const interval = setInterval(() => { console.log('[ConfirmPage] polling orderId:', id); void poll() }, 10000)
+    alert(`[ConfirmPage] orderId al montar: ${id}`)
+    const interval = setInterval(() => { void poll() }, 10000)
     return () => { active = false; clearInterval(interval) }
   }, [confirmState?.orderId, navigate])
 
