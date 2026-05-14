@@ -104,6 +104,7 @@ export interface TrackingOrder {
   customerName: string | null
   totalUsd: string
   totalBs: string
+  cancelReason: string | null
   items: { name: string; quantity: number; unitPriceUsd: string }[]
 }
 

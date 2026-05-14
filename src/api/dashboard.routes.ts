@@ -1805,6 +1805,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           deliveryAddress: true,
           totalUsd: true,
           totalBs: true,
+          cancelReason: true,
           customer: { select: { name: true } },
           items: {
             select: {
@@ -1824,6 +1825,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         deliveryAddress: order.deliveryAddress,
         totalUsd: order.totalUsd.toString(),
         totalBs: order.totalBs.toString(),
+        cancelReason: order.cancelReason,
         customerName: order.customer.name,
         items: order.items.map((i) => ({
           name: i.menuItem.name,

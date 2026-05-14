@@ -332,6 +332,11 @@ export default function OrderTrackingPage() {
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⚠️</div>
               <p style={{ fontWeight: 700, fontSize: '1rem', color: '#f59e0b' }}>¿Hubo algún problema con tu pago? 🤔</p>
+              {order.cancelReason && (
+                <p style={{ color: '#fbbf24', fontSize: '0.88rem', fontWeight: 600, marginTop: '0.4rem', background: 'rgba(245,158,11,0.12)', borderRadius: 8, padding: '0.4rem 0.7rem' }}>
+                  Motivo: {order.cancelReason}
+                </p>
+              )}
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.3rem' }}>
                 Intenta subir el comprobante nuevamente, estamos aquí para ayudarte.
               </p>
