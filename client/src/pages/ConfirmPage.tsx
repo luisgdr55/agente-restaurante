@@ -296,20 +296,36 @@ export default function ConfirmPage() {
 
         {/* ── Pedido cancelado ── */}
         {pollStatus === 'CANCELLED' && (
-          <div style={{
-            background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)',
-            borderRadius: 14, padding: '1rem 1.25rem', marginBottom: '1rem',
-            display: 'flex', alignItems: 'flex-start', gap: '0.75rem', textAlign: 'left',
-          }}>
-            <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>❌</span>
-            <div>
-              <p style={{ fontWeight: 700, color: '#9ca3af', marginBottom: '0.25rem', fontSize: '0.95rem' }}>
-                Pedido cancelado
-              </p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
-                Este pedido fue cancelado. Puedes hacer uno nuevo cuando quieras.
-              </p>
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{
+              background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)',
+              borderRadius: 14, padding: '1rem 1.25rem', marginBottom: '0.75rem',
+              display: 'flex', alignItems: 'flex-start', gap: '0.75rem', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>❌</span>
+              <div>
+                <p style={{ fontWeight: 700, color: '#9ca3af', marginBottom: '0.25rem', fontSize: '0.95rem' }}>
+                  Pedido cancelado
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  Este pedido fue cancelado. Puedes hacer uno nuevo cuando quieras.
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('yebrams_active_order')
+                localStorage.removeItem('yebrams_cart')
+                navigate('/init')
+              }}
+              style={{
+                width: '100%', padding: '0.95rem',
+                background: 'var(--accent)', color: '#000',
+                borderRadius: 12, fontWeight: 800, fontSize: '1rem', border: 'none',
+                boxShadow: '0 4px 24px rgba(245,197,24,0.4)',
+              }}>
+              🍗 Hacer un nuevo pedido
+            </button>
           </div>
         )}
 
