@@ -68,8 +68,8 @@ self.addEventListener('push', (event) => {
   const title = data.title ?? "Yebram's";
   const options = {
     body: data.body ?? '',
-    icon: 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/heropwa.png',
-    badge: 'https://cdn.jsdelivr.net/gh/luisgdr55/agente-restaurante@master/public/menu-images/heropwa.png',
+    icon: 'https://yebramspedidos.up.railway.app/logo.png',
+    badge: 'https://yebramspedidos.up.railway.app/logo.png',
     data: { url: data.url ?? '/' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
