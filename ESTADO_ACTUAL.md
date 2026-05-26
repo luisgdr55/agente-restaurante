@@ -535,7 +535,6 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
 
 ### 🔴 Alta prioridad
 
-- [ ] **Push PAYMENT_REJECTED con motivo**: incluir `cancelReason` en el body de la push. Cambiar en `dashboard.routes.ts` a "❌ Pago rechazado: {motivo}" si hay motivo, genérico si no.
 - [ ] **Costo delivery por zonas**: selector zona en Checkout (cerca/medio/lejos), clave `DELIVERY_ZONES` = JSON `[{nombre, costo}]`. Costo suma al total, no al subtotal. Dashboard muestra zona en OrderCard.
 - [ ] **Avisar motorizado al entrar a IN_KITCHEN**: si orden ya tiene `driverPhone`, enviar push/WA "📦 Pedido #XXXX en cocina, prepárate".
 - [ ] **Ticket WhatsApp con link /driver/:id**: al asignar motorizado, mensaje prellenado al admin con #pedido, cliente, ítems, dirección, referencia y link `/driver/:id`.
@@ -593,6 +592,10 @@ CSS inyectado una sola vez con guard `getElementById('btn-micro-styles')`:
 - `PAYMENT_CONFIRMED` → banner verde sticky con countdown 3s → auto-navega a tracking
 - `IN_KITCHEN / READY / OUT_FOR_DELIVERY` → `navigate('/order/:id', { replace: true })` directo
 - `CANCELLED` → card gris + botón dorado "🍗 Hacer un nuevo pedido" que limpia localStorage y navega a `/init`
+
+### Documentación y UX menor
+- **Feature 21 cross-selling modal**: spec completa documentada en FEATURES.md
+- **`MenuPage` pantalla cerrado**: link Luis actualizado con mensaje "Hola! Me gusta lo que hiciste en Yebram's, quisiera esto para mi negocio."
 
 ## Próxima sesión — pendientes en orden de prioridad
 

@@ -459,7 +459,7 @@ Candidato para cuando el sistema tenga más de 1 restaurante activo.
 
 ---
 
-## FEATURE 19 — Módulo Control de Crisis
+## ✅ FEATURE 19 — Módulo Control de Crisis — implementado 2026-05-04
 
 Panel en dashboard (pestaña o sección en Settings) con toggles de activación inmediata.
 **Sin nueva infraestructura** — todos los estados viven en la tabla `SystemConfig` existente.
