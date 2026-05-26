@@ -689,3 +689,14 @@ El webhook convierte `location` a `type: 'text'` antes de llegar al handler — 
 **Cambio 5 — Consistencia en callers**
 - `building-order.handler.ts`: pasa `session.cart` a `extractCartFromText`.
 - `main-menu.handler.ts` (`tryQuickOrder`): pasa `session.cart` a `extractCartFromText`.
+
+---
+
+## Metodología de trabajo con el arquitecto
+
+- Muestra diff antes de aplicar cualquier cambio — sin excepción
+- Un archivo a la vez cuando hay múltiples cambios relacionados
+- No apliques sin confirmación explícita del arquitecto
+- No refactorices nada fuera del scope de la tarea indicada
+- Al terminar cada fase: actualiza ESTADO_ACTUAL.md y FEATURES.md si aplica
+- Push solo cuando el arquitecto lo indique explícitamente
