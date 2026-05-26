@@ -527,42 +527,56 @@ Banner en hero de la PWA debajo del saludo de bienvenida.
 
 ## FEATURE 21 — Cross-selling en carrito
 
-Carrusel "¿Le agregas...?" visible justo antes del checkout, basado en los ítems del carrito activo.
+Modal de sugerencias estilo grandes cadenas (McDonald's, KFC) que se activa justo antes de navegar al Checkout — no durante la navegación por el menú.
 
-### Lógica
-- Tabla `product_suggestions(product_id, suggested_id, priority)` — reglas manuales configuradas por el dueño
-- Sin LLM, sin ML: puras reglas explícitas
-- Ejemplo: hamburguesa → sugiere refresco y papas; pizza → sugiere ensalada
+### Activación
+- El cliente toca **"Ir a pagar"** en el `CartDrawer`
+- Antes de navegar a `/checkout`, se abre un **modal / bottom sheet** desde abajo
+- Solo se muestra si existe al menos un ítem disponible en las categorías de sugerencia configuradas
+- Si no hay ítems disponibles, navega directo al Checkout sin modal
 
-### UX en CartDrawer / CheckoutPage
+### UX del modal
 ```
-¿Le agregas algo más? 🤤
-[ 🥤 Refresco $1.50 ] [ 🍟 Papas $2.00 ] [ 🧁 Postre $3.00 ]
-  (scroll horizontal)
+┌─────────────────────────────────┐
+│  ¿Le agregas algo más? 😋    ×  │
+│                                 │
+│  ←  [ foto | Nombre  $1.50 ➕ ] [ foto | Nombre  $2.00 ➕ ] →  │
+│        (carrusel horizontal, 4-6 ítems)                         │
+│                                 │
+│  [ Continuar con mi pedido → ]  │
+└─────────────────────────────────┘
 ```
-- Toca el chip → agrega al carrito sin salir de la vista
-- Solo muestra sugerencias no presentes ya en el carrito
+- Carrusel horizontal con foto, nombre y precio de cada ítem
+- Botón **"➕ Agregar"** por ítem — lo añade al carrito **sin cerrar el modal**
+- El botón cambia a **"✓ Agregado"** (estado visual) tras tocarlo
+- Botón **"Continuar con mi pedido →"** — cierra el modal y navega al Checkout
+- Botón **"×"** (esquina superior derecha) — cierra el modal y navega al Checkout sin agregar nada
+- Ítems ya presentes en el carrito no aparecen como sugerencias
+
+### Lógica de sugerencias
+- Sin tabla adicional ni ML: usa el **menú existente filtrado por categorías marcadas**
+- Las categorías configuradas como "de sugerencia" se obtienen de `SystemConfig` clave `SUGGESTION_CATEGORY_IDS` (JSON array de IDs de categoría)
+- Se toman hasta 6 ítems activos de esas categorías, excluyendo los ya en el carrito
+- Orden: categorías en el orden del JSON, ítems por `sortOrder` dentro de cada categoría
 
 ### Dashboard — configuración
-Sección "Cross-selling" en pestaña Menú:
-- Tabla editable: "Para [Ítem A] → sugerir [Ítem B] con prioridad [1-5]"
-- Drag & drop de prioridad
+En `SettingsPage`, sección **"Cross-selling"**:
+- Lista de todas las categorías del menú con un toggle activo/inactivo
+- Las categorías activadas se guardan en `SystemConfig` como `SUGGESTION_CATEGORY_IDS`
+- Valor por defecto sugerido: Complementos, Bebidas, Postres
+- Sin drag & drop necesario — el orden de las categorías en el menú define el orden de sugerencias
 
-### Modelo de datos (Prisma)
-```prisma
-model ProductSuggestion {
-  id          String   @id @default(cuid())
-  productId   String
-  suggestedId String
-  priority    Int      @default(1)
-  product     MenuItem @relation("source", fields: [productId], references: [id])
-  suggested   MenuItem @relation("target", fields: [suggestedId], references: [id])
-}
-```
+### Config keys
+| Clave | Ejemplo |
+|---|---|
+| `SUGGESTION_CATEGORY_IDS` | `["cat_abc123","cat_def456","cat_ghi789"]` |
 
 ### Endpoints
-- `GET /api/public/suggestions?items=id1,id2` → lista de sugerencias para los ítems del carrito
-- `GET/POST/DELETE /api/suggestions` (auth dashboard) — CRUD de reglas
+- `GET /api/public/menu/suggestions` — devuelve hasta 6 ítems activos de las categorías configuradas; requiere query param `?exclude=id1,id2` con los IDs ya en el carrito
+- `GET/PATCH /api/config/suggestion-categories` (auth dashboard) — leer/guardar los IDs de categorías de sugerencia
+
+### Implementación cliente (sin backend nuevo si se prefiere)
+Alternativa sin endpoint dedicado: el cliente ya tiene el menú completo en memoria (cacheado en `menuApi.getMenu()`); filtrar categorías por IDs de `SystemConfig` en el frontend sin request adicional al abrir el modal.
 
 ---
 
